@@ -1,0 +1,29 @@
+
+{
+  "name": "Gestão 93 - Controle de Vendas",
+  "short_name": "Gestão 93",
+  "description": "Sistema de gerenciamento de vendas a prazo para lojas de roupas com inteligência artificial.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#312e81",
+  "orientation": "portrait",
+  "categories": ["business", "finance"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA1MTIgNTEyJz4KICA8cmVjdCB3aWR0aD0nNTEyJyBoZWlnaHQ9JzUxMicgcng9JzEyOCcgZmlsbD0nd2hpdGUnLz4KICA8dGV4dCB4PSc1MCUnIHk9JzIzMCcgdGV4dC1hbmNob3I9J21pZGRsZScgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtc3R5bGU9J2l0YWxpYycgZm9udC1zaXplPSc4MCcgZmlsbD0nIzMxMmU4MSc+R0VTVEFPPC90ZXh0PgogIDx0ZXh0IHg9JzUwJScgeT0nMzgwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmb250LWZhbWlseT0nc2Fucy1zZXJpZicgZm9udC13ZWlnaHQ9JzkwMCcgZm9udC1zdHlsZT0naXRhbGljJyBmb250LXNpemU9JzE4MCcgZmlsbD0nIzU4MWM4Nyc+OTM8L3RleHQ+Cjwvc3ZnPg==",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=1080",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Gestão de Vendas"
+    }
+  ]
+}
