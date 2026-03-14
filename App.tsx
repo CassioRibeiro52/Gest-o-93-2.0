@@ -134,7 +134,7 @@ const App: React.FC = () => {
           storageService.saveData(`gestao93_products_${userId}`, products),
           storageService.saveData(`gestao93_trash_${userId}`, trashSales),
           storageService.saveData(`gestao93_condicionais_${userId}`, condicionais),
-          storageService.saveData('gestao93_current_user', user)
+          storageService.saveData(`gestao93_current_user_${userId}`, user)
         ]);
 
         setLastSyncTime(results[0]);
@@ -521,7 +521,9 @@ const App: React.FC = () => {
             <div className="flex items-center gap-1">
               <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'synced' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></div>
               <span className="text-[8px] font-black uppercase text-indigo-300">
-                {syncStatus === 'synced' ? (lastSyncTime ? `Sincronizado ${new Date(lastSyncTime).toLocaleTimeString()}` : 'Nuvem Sincronizada') : 'Gravando...'}
+                {syncStatus === 'synced' 
+                  ? (lastSyncTime ? `Sincronizado ${new Date(lastSyncTime).toLocaleTimeString()}` : 'Nuvem Sincronizada') 
+                  : syncStatus === 'error' ? 'Erro de Conexão' : 'Gravando...'}
               </span>
             </div>
           </div>
