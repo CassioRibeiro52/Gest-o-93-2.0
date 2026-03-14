@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "AppData": {
+      "title": "AppData",
+      "description": "Armazenamento genérico de dados do aplicativo (clientes, vendas, etc)",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "description": "O conteúdo real dos dados (array ou objeto)"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp da última atualização"
+        }
+      },
+      "required": ["data", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/app_data/{key}": {
+      "schema": "AppData",
+      "description": "Coleção que armazena todos os dados do sistema indexados por chave e ID do usuário"
+    }
+  }
+}

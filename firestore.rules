@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: app_data
+    // Document ID: {key} (Format: prefix_type_userId)
+    // Fields:
+    //   - data: any (required) - The actual data payload
+    //   - updatedAt: number (required) - Timestamp of update
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Verifica se a chave do documento termina com o UID do usuário
+    // Exemplo: gestao93_customers_ABC123 deve ser acessível pelo usuário ABC123
+    function isKeyOwner(key) {
+      return isAuthenticated() && key.endsWith(request.auth.uid);
+    }
+
+    function isValidAppData(data) {
+      return data.keys().hasAll(['data', 'updatedAt']) &&
+             data.updatedAt is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /app_data/{key} {
+      allow read, write: if isKeyOwner(key) && (request.method == 'delete' || isValidAppData(request.resource.data));
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

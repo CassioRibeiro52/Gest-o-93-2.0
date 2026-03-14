@@ -1,27 +1,12 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 
-const sanitize = (val: any) => {
-  if (typeof val !== 'string') return val;
-  // Remove espaços, aspas no início/fim e vírgulas no final
-  return val.trim().replace(/^["']|["']$/g, '').replace(/,$/, '');
-};
-
-const firebaseConfig = {
-  apiKey: sanitize(import.meta.env.VITE_FIREBASE_API_KEY),
-  authDomain: sanitize(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
-  projectId: sanitize(import.meta.env.VITE_FIREBASE_PROJECT_ID),
-  storageBucket: sanitize(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
-  messagingSenderId: sanitize(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
-  appId: sanitize(import.meta.env.VITE_FIREBASE_APP_ID)
-};
-
-// Verifica se as chaves mínimas estão presentes e não são placeholders
+// Verifica se as chaves mínimas estão presentes
 const isFirebaseConfigured = 
   !!firebaseConfig.apiKey && 
-  firebaseConfig.apiKey !== 'undefined' && 
-  firebaseConfig.apiKey.length > 10 &&
+  firebaseConfig.apiKey !== 'TODO_KEYHERE' && 
   !!firebaseConfig.projectId;
 
 let app = null;
@@ -34,5 +19,19 @@ try {
 }
 
 export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
+export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId) : null;
 export { isFirebaseConfigured };
+
+// Teste de conexão
+import { doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
+async function testConnection() {
+  if (!db) return;
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Erro de conexão com o Firebase: O cliente está offline ou a configuração está incorreta.");
+    }
+  }
+}
+testConnection();
