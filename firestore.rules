@@ -39,7 +39,9 @@ service cloud.firestore {
     // ===============================================================
 
     match /app_data/{key} {
-      allow read, write: if isKeyOwner(key) && (request.method == 'delete' || isValidAppData(request.resource.data));
+      allow read: if isKeyOwner(key);
+      allow create, update: if isKeyOwner(key) && isValidAppData(request.resource.data);
+      allow delete: if isKeyOwner(key);
     }
 
     match /test/connection {
