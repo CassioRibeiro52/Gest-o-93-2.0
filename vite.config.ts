@@ -20,7 +20,8 @@ export default defineConfig(({ mode }) => {
         }
       },
       build: {
-        chunkSizeWarningLimit: 5000,
+        // Aumentado para evitar avisos de tamanho de pacote com Firebase/GenAI
+        chunkSizeWarningLimit: 10000,
       }
     };
 });
