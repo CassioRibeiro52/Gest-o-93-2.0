@@ -21,10 +21,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Verifica se a chave do documento termina com o UID do usuário
-    // Exemplo: gestao93_customers_ABC123 deve ser acessível pelo usuário ABC123
+    // Verifica se a chave do documento contém o UID do usuário
+    // O formato esperado é gestao93_tipo_UID
     function isKeyOwner(key) {
-      return isAuthenticated() && key.endsWith(request.auth.uid);
+      return isAuthenticated() && 
+             (key.matches(".*" + request.auth.uid + "$") || 
+              key.matches(".*" + request.auth.uid));
     }
 
     function isValidAppData(data) {

@@ -31,8 +31,9 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMsg = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMsg,
     authInfo: {
       userId: auth?.currentUser?.uid,
       email: auth?.currentUser?.email,
@@ -49,7 +50,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.error(`[Firestore ${operationType.toUpperCase()}] Erro em ${path}:`, errorMsg);
+  console.error('Detalhes do Erro:', JSON.stringify(errInfo, null, 2));
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -60,17 +62,41 @@ export const storageService = {
   async saveData(key: string, data: any): Promise<number> {
     const path = `app_data/${key}`;
     try {
-      if (!db) throw new Error("Firestore não configurado");
+      if (!db) {
+        console.warn("Firestore não inicializado. Salvando apenas localmente.");
+        localStorage.setItem(key, JSON.stringify(data));
+        return Date.now();
+      }
+      
       const docRef = doc(db, 'app_data', key);
       const timestamp = Date.now();
-      await setDoc(docRef, { data, updatedAt: timestamp });
+      
+      // Tenta salvar no Firestore
+      await setDoc(docRef, { 
+        data: JSON.parse(JSON.stringify(data)), // Garante que é serializável
+        updatedAt: timestamp 
+      });
+      
+      // Também salva localmente para redundância
+      localStorage.setItem(key, JSON.stringify(data));
       return timestamp;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('permission')) {
+    } catch (error: any) {
+      console.error(`Erro crítico ao salvar ${key}:`, error.message || error);
+      
+      // Salva localmente como fallback
+      localStorage.setItem(key, JSON.stringify(data));
+      
+      // Propaga o erro para o App.tsx se for algo que impeça a sincronização
+      if (error.code === 'permission-denied') {
+        console.error("ERRO DE PERMISSÃO: Verifique se as regras do Firestore estão corretas e se o usuário está logado.");
+        handleFirestoreError(error, OperationType.WRITE, path);
+      } else if (error.message?.includes('offline') || error.message?.includes('network')) {
+        console.error("ERRO DE CONEXÃO: O cliente parece estar offline.");
+        handleFirestoreError(error, OperationType.WRITE, path);
+      } else {
         handleFirestoreError(error, OperationType.WRITE, path);
       }
-      console.error("Erro ao salvar no Firestore:", error);
-      localStorage.setItem(key, JSON.stringify(data));
+      
       return Date.now();
     }
   },
