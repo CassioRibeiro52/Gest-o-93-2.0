@@ -31,10 +31,11 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  
   const isMounted = useRef(false);
+  const initialLoadAttempted = useRef(false);
 
   const FASHION_IMAGE_URL = 'https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=2000';
 
@@ -77,6 +78,7 @@ const App: React.FC = () => {
         setLoading(true);
         
         try {
+          console.log("Iniciando carregamento de dados para o usuário:", userId);
           const tutorialSeen = await storageService.loadData<string>(`gestao93_tutorial_seen_${userId}`);
           if (!tutorialSeen) setShowTutorial(true);
 
@@ -98,8 +100,14 @@ const App: React.FC = () => {
           const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
           const validTrash = (loadedTrash || []).filter((item: TrashItem) => (Date.now() - item.deletedAt) < thirtyDaysInMs);
           setTrashSales(validTrash);
+          
+          setIsInitialLoadComplete(true);
+          initialLoadAttempted.current = true;
+          console.log("Dados carregados com sucesso.");
         } catch (e) {
-          console.error("Erro ao carregar dados do Firestore:", e);
+          console.error("Erro crítico ao carregar dados do Firestore:", e);
+          // Se falhar o carregamento inicial, não marcamos como completo para evitar sobrescrever dados da nuvem com vazios
+          setSyncStatus('error');
         } finally {
           setLoading(false);
         }
@@ -120,13 +128,14 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (loading || !user || !isMounted.current) return;
+    if (loading || !user || !isMounted.current || !isInitialLoadComplete) return;
 
     const autoSave = async () => {
       try {
         setSyncStatus('syncing');
         const userId = user.id;
         
+        console.log("Auto-saving data...");
         const results = await Promise.all([
           storageService.saveData(`gestao93_customers_${userId}`, customers),
           storageService.saveData(`gestao93_sales_${userId}`, sales),
@@ -145,9 +154,9 @@ const App: React.FC = () => {
       }
     };
 
-    const timer = setTimeout(autoSave, 800);
+    const timer = setTimeout(autoSave, 1500); // Aumentado para 1.5s para evitar excesso de escritas
     return () => clearTimeout(timer);
-  }, [customers, sales, expenses, products, trashSales, user, loading]);
+  }, [customers, sales, expenses, products, trashSales, user, loading, isInitialLoadComplete]);
 
   const handleLogout = async () => {
     try {
@@ -463,6 +472,45 @@ const App: React.FC = () => {
 
   if (!user) return <Login />;
 
+  const handleReloadFromCloud = async () => {
+    if (!user) return;
+    if (!confirm('Isso substituirá seus dados locais atuais pelos dados salvos na nuvem. Continuar?')) return;
+    
+    setLoading(true);
+    setSyncStatus('syncing');
+    try {
+      const userId = user.id;
+      const [loadedCustomers, loadedSales, loadedExpenses, loadedProducts, loadedTrash, loadedCondicionais] = await Promise.all([
+        storageService.loadData<Customer[]>(`gestao93_customers_${userId}`),
+        storageService.loadData<Sale[]>(`gestao93_sales_${userId}`),
+        storageService.loadData<Expense[]>(`gestao93_expenses_${userId}`),
+        storageService.loadData<Product[]>(`gestao93_products_${userId}`),
+        storageService.loadData<TrashItem[]>(`gestao93_trash_${userId}`),
+        storageService.loadData<Condicional[]>(`gestao93_condicionais_${userId}`)
+      ]);
+
+      setCustomers(loadedCustomers || []);
+      setSales(loadedSales || []);
+      setExpenses(loadedExpenses || []);
+      setProducts(loadedProducts || []);
+      setCondicionais(loadedCondicionais || []);
+      
+      const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+      const validTrash = (loadedTrash || []).filter((item: TrashItem) => (Date.now() - item.deletedAt) < thirtyDaysInMs);
+      setTrashSales(validTrash);
+      
+      setSyncStatus('synced');
+      setLastSyncTime(Date.now());
+      alert('Dados recarregados com sucesso!');
+    } catch (e) {
+      console.error("Erro ao recarregar dados:", e);
+      setSyncStatus('error');
+      alert('Falha ao recarregar dados da nuvem.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderView = () => {
     switch (activeView) {
       case 'dashboard': return <Dashboard sales={sales} customers={customers} expenses={expenses} products={products} />;
@@ -487,14 +535,26 @@ const App: React.FC = () => {
           onSync={async () => {
             if (user) {
               setSyncStatus('syncing');
-              const t = await storageService.saveData(`gestao93_customers_${user.id}`, customers);
-              await storageService.saveData(`gestao93_sales_${user.id}`, sales);
-              await storageService.saveData(`gestao93_expenses_${user.id}`, expenses);
-              await storageService.saveData(`gestao93_products_${user.id}`, products);
-              setLastSyncTime(t);
-              setSyncStatus('synced');
+              try {
+                const results = await Promise.all([
+                  storageService.saveData(`gestao93_customers_${user.id}`, customers),
+                  storageService.saveData(`gestao93_sales_${user.id}`, sales),
+                  storageService.saveData(`gestao93_expenses_${user.id}`, expenses),
+                  storageService.saveData(`gestao93_products_${user.id}`, products),
+                  storageService.saveData(`gestao93_trash_${user.id}`, trashSales),
+                  storageService.saveData(`gestao93_condicionais_${user.id}`, condicionais),
+                  storageService.saveData(`gestao93_current_user_${user.id}`, user)
+                ]);
+                setLastSyncTime(results[0]);
+                setSyncStatus('synced');
+                alert('Sincronização concluída!');
+              } catch (e) {
+                setSyncStatus('error');
+                alert('Erro ao sincronizar.');
+              }
             }
           }}
+          onReload={handleReloadFromCloud}
           onUpdateProfile={setUser} 
           onImport={(data) => { setCustomers(data.customers); setSales(data.sales); setProducts(data.products || []); }} 
           onClear={clearUserData} 

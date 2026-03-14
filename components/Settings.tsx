@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Customer, Sale, User, Product } from '../types';
+import { firebaseConfig } from '../services/firebase';
 
 interface SettingsProps {
   user?: User | null;
@@ -11,6 +12,7 @@ interface SettingsProps {
   lastSyncTime?: number | null;
   isFirebaseConfigured?: boolean;
   onSync?: () => Promise<void>;
+  onReload?: () => Promise<void>;
   onUpdateProfile?: (user: User) => void;
   onImport: (data: { customers: Customer[], sales: Sale[], products?: Product[] }) => void;
   onClear: () => void;
@@ -26,8 +28,9 @@ const Settings: React.FC<SettingsProps> = ({
   lastSyncTime, 
   isFirebaseConfigured,
   onSync, 
+  onReload,
   onUpdateProfile, 
-  onImport, 
+  onImport,
   onClear, 
   onInstall 
 }) => {
@@ -219,21 +222,20 @@ const Settings: React.FC<SettingsProps> = ({
                   <h4 className="text-[10px] font-black text-rose-800 uppercase tracking-widest">Diagnóstico de Falha</h4>
                   <div className="space-y-2">
                     {[
-                      { label: 'API Key', key: 'VITE_FIREBASE_API_KEY' },
-                      { label: 'Project ID', key: 'VITE_FIREBASE_PROJECT_ID' },
-                      { label: 'Auth Domain', key: 'VITE_FIREBASE_AUTH_DOMAIN' },
-                      { label: 'App ID', key: 'VITE_FIREBASE_APP_ID' }
+                      { label: 'API Key', key: 'apiKey' },
+                      { label: 'Project ID', key: 'projectId' },
+                      { label: 'Auth Domain', key: 'authDomain' },
+                      { label: 'App ID', key: 'appId' }
                     ].map(item => {
-                      // Nota: No cliente, import.meta.env só expõe o que começa com VITE_
-                      const val = (import.meta.env as any)[item.key];
-                      const isMissing = !val || val === 'undefined';
+                      const val = (firebaseConfig as any)[item.key];
+                      const isMissing = !val || val.includes('TODO');
                       const isTooShort = val && val.length < 5;
                       
                       return (
                         <div key={item.key} className="flex items-center justify-between text-[10px]">
                           <span className="font-bold text-slate-600">{item.label}:</span>
                           <span className={`font-black uppercase ${isMissing || isTooShort ? 'text-rose-600' : 'text-emerald-600'}`}>
-                            {isMissing ? 'Ausente ❌' : isTooShort ? 'Muito Curto ⚠️' : 'Detectado ✅'}
+                            {isMissing ? 'Ausente ❌' : isTooShort ? 'Inválido ⚠️' : 'Detectado ✅'}
                           </span>
                         </div>
                       );
@@ -247,15 +249,24 @@ const Settings: React.FC<SettingsProps> = ({
 
               <div className="space-y-4">
                 <p className="text-xs text-indigo-700 font-medium leading-relaxed">
-                  O <b>Gestão 93</b> salva seus dados automaticamente a cada alteração. Se você estiver em um local com internet instável, pode usar o botão abaixo para forçar uma gravação manual.
+                  O <b>Gestão 93</b> salva seus dados automaticamente a cada alteração. Se você estiver em um local com internet instável, pode usar o botão abaixo para forçar uma gravação manual ou recarregar os dados da nuvem.
                 </p>
-                <button 
-                  onClick={() => onSync && onSync()}
-                  disabled={syncStatus === 'syncing'}
-                  className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {syncStatus === 'syncing' ? 'Processando...' : 'Sincronizar Agora'}
-                </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => onSync && onSync()}
+                    disabled={syncStatus === 'syncing'}
+                    className="bg-indigo-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {syncStatus === 'syncing' ? 'Processando...' : 'Sincronizar Agora'}
+                  </button>
+                  <button 
+                    onClick={() => onReload && onReload()}
+                    disabled={syncStatus === 'syncing'}
+                    className="bg-white text-indigo-600 border-2 border-indigo-600 px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    Recarregar da Nuvem
+                  </button>
+                </div>
               </div>
             </div>
 

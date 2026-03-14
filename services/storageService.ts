@@ -107,23 +107,45 @@ export const storageService = {
   async loadData<T>(key: string): Promise<T | null> {
     const path = `app_data/${key}`;
     try {
-      if (!db) throw new Error("Firestore não configurado");
+      if (!db) {
+        console.warn("Firestore não configurado para carregamento.");
+        const localData = localStorage.getItem(key);
+        return localData ? JSON.parse(localData) as T : null;
+      }
+      
       const docRef = doc(db, 'app_data', key);
+      
+      // Tenta buscar do servidor primeiro para garantir dados atualizados em múltiplos dispositivos
+      // Se estiver offline, o Firebase usará o cache automaticamente se habilitado
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
-        return docSnap.data().data as T;
+        const cloudData = docSnap.data().data as T;
+        // Atualiza o cache local com os dados da nuvem
+        localStorage.setItem(key, JSON.stringify(cloudData));
+        return cloudData;
       }
       
+      // Se o documento não existe na nuvem, verifica o local
       const localData = localStorage.getItem(key);
       return localData ? JSON.parse(localData) as T : null;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('permission')) {
+    } catch (error: any) {
+      console.error(`Erro ao carregar ${key} do Firestore:`, error.message || error);
+      
+      // Se for erro de permissão, reporta
+      if (error.code === 'permission-denied') {
         handleFirestoreError(error, OperationType.GET, path);
       }
-      console.error("Erro ao carregar do Firestore:", error);
+      
+      // Fallback para local em caso de erro de rede
       const localData = localStorage.getItem(key);
-      return localData ? JSON.parse(localData) as T : null;
+      if (localData) {
+        console.info(`Usando dados locais para ${key} devido a erro de rede.`);
+        return JSON.parse(localData) as T;
+      }
+      
+      // Se não houver nem local nem na nuvem (ou erro), retorna null
+      return null;
     }
   },
 

@@ -34,7 +34,7 @@ if (db) {
   });
 }
 
-export { isFirebaseConfigured };
+export { isFirebaseConfigured, firebaseConfig };
 
 // Teste de conexão removido para evitar logs confusos
 // async function testConnection() { ... }
