@@ -21,7 +21,6 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         target: 'es2015',
-        // Aumentado para evitar avisos de tamanho de pacote com Firebase/GenAI
         chunkSizeWarningLimit: 10000,
       }
     };

@@ -1,29 +1,20 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Verifica se as chaves mínimas estão presentes
-const isFirebaseConfigured = 
-  !!firebaseConfig.apiKey && 
-  firebaseConfig.apiKey !== 'TODO_KEYHERE' && 
-  !!firebaseConfig.projectId;
+const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 
-let app = null;
+let app;
 try {
-  if (isFirebaseConfigured) {
-    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  }
-} catch (error) {
-  console.error("Erro ao inicializar Firebase:", error);
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+} catch (e) {
+  console.error("Erro ao inicializar Firebase:", e);
 }
 
 export const auth = app ? getAuth(app) : null;
-
-// Inicializa Firestore com cache persistente (substitui o depreciado enableIndexedDbPersistence)
-export const db = app ? initializeFirestore(app, {
-  localCache: persistentLocalCache({})
-}, firebaseConfig.firestoreDatabaseId) : null;
+export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId) : null;
 
 export { isFirebaseConfigured, firebaseConfig };
 
