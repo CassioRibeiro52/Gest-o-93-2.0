@@ -1,29 +1,33 @@
 
-const CACHE_NAME = 'gestao93-v10';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'gestao93-v11';
+const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'
 ];
 
+// Install event: Pre-cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Gestão 93: Cache aberto');
-      // Use cache.addAll but catch errors for individual files if needed
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-        console.warn('Gestão 93: Falha ao cachear alguns arquivos críticos', err);
+      console.log('Gestão 93: Pre-caching assets');
+      return cache.addAll(STATIC_ASSETS).catch(err => {
+        console.warn('Gestão 93: Pre-cache failed for some assets', err);
       });
     })
   );
   self.skipWaiting();
 });
 
+// Activate event: Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
       keys.map(key => {
         if (key !== CACHE_NAME) {
+          console.log('Gestão 93: Removing old cache', key);
           return caches.delete(key);
         }
       })
@@ -32,35 +36,48 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Fetch event: Advanced caching strategy
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
+  const url = new URL(request.url);
 
-  if (event.request.mode === 'navigate') {
+  // Skip non-GET requests
+  if (request.method !== 'GET') return;
+
+  // 1. Navigation strategy: Network-First with Offline Fallback
+  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then(response => {
-          // If server returns 404, fallback to index.html
-          if (response.status === 404) {
-            return caches.match('/') || caches.match('/index.html') || response;
-          }
+          // Cache the latest version of the page
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
           return response;
         })
         .catch(() => {
-          // If network fails, fallback to index.html
+          // Fallback to cached index.html
           return caches.match('/') || caches.match('/index.html');
         })
     );
     return;
   }
 
-  // For other assets, try cache then network
+  // 2. Assets strategy: Stale-While-Revalidate
+  // This is good for JS, CSS, and images
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).catch(() => {
-        // Silent fail for non-critical assets
-        return null;
+    caches.match(request).then((cachedResponse) => {
+      const fetchPromise = fetch(request).then((networkResponse) => {
+        // Only cache valid responses
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return networkResponse;
+      }).catch(() => {
+        // If network fails, we already returned cachedResponse if it exists
       });
+
+      return cachedResponse || fetchPromise;
     })
   );
 });

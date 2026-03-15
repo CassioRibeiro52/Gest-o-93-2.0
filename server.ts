@@ -33,8 +33,13 @@ async function startServer() {
     });
   };
 
-  app.get("/manifest.json", (req, res) => servePwaFile("manifest.json", res));
+  app.get("/manifest.json", (req, res) => {
+    res.setHeader("Content-Type", "application/manifest+json");
+    servePwaFile("manifest.json", res);
+  });
+
   app.get("/sw.js", (req, res) => {
+    res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Service-Worker-Allowed", "/");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     servePwaFile("sw.js", res);
@@ -51,15 +56,25 @@ async function startServer() {
     const distPath = path.join(process.cwd(), "dist");
     const rootIndex = path.join(process.cwd(), "index.html");
     
-    app.use(express.static(distPath));
+    // Serve static files with long-term caching
+    app.use(express.static(distPath, {
+      maxAge: '1y',
+      immutable: true,
+      index: false
+    }));
 
     app.get("*", (req, res) => {
+      // Don't fallback for API routes
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API route not found' });
+      }
+
       // Try dist/index.html, then root index.html
       res.sendFile(path.join(distPath, "index.html"), (err) => {
         if (err) {
           res.sendFile(rootIndex, (err2) => {
             if (err2) {
-              res.status(404).send("Erro 404: Arquivo index.html não encontrado no servidor.");
+              res.status(404).send("Erro 404: Sistema não encontrado. Por favor, tente recarregar.");
             }
           });
         }
