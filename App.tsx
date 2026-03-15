@@ -435,30 +435,6 @@ const App: React.FC = () => {
     }
   };
 
-  if (!isFirebaseConfigured) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-indigo-950 p-6">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl text-center">
-          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-4">Configuração Necessária</h2>
-          <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-            As chaves do Firebase não foram encontradas. Para ativar o login e a sincronização em nuvem, configure as variáveis de ambiente no painel do AI Studio.
-          </p>
-          <div className="bg-slate-50 rounded-2xl p-4 text-left space-y-2 mb-8">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Variáveis Faltando:</p>
-            <code className="block text-[10px] text-indigo-600 font-mono bg-white p-2 rounded-lg border border-slate-100">VITE_FIREBASE_API_KEY</code>
-            <code className="block text-[10px] text-indigo-600 font-mono bg-white p-2 rounded-lg border border-slate-100">VITE_FIREBASE_PROJECT_ID</code>
-          </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Consulte as instruções enviadas no chat.</p>
-        </div>
-      </div>
-    );
-  }
-
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-indigo-950">
