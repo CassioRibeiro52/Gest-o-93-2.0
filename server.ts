@@ -24,19 +24,20 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // History API Fallback for SPA (Production only)
-    app.use(history({
-      verbose: true,
-      index: "/index.html"
-    }));
-
-    // Serve static files in production
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
     
-    // Fallback for production
+    // 1. Serve static files first (css, js, images)
+    app.use(express.static(distPath));
+
+    // 2. API routes (already handled above, but good to keep in mind)
+
+    // 3. Fallback for SPA: any other route serves index.html
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(path.join(distPath, "index.html"), (err) => {
+        if (err) {
+          res.status(404).send("Aplicação não encontrada. Por favor, recarregue a página.");
+        }
+      });
     });
   }
 

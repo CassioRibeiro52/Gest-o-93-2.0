@@ -1,13 +1,14 @@
 
-const CACHE_NAME = 'gestao93-v7';
-const OFFLINE_URL = 'index.html';
+const CACHE_NAME = 'gestao93-v8';
+const OFFLINE_URL = '/index.html';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
+        '/',
         OFFLINE_URL,
-        'manifest.json',
+        '/manifest.json',
         'https://cdn-icons-png.flaticon.com/512/3081/3081648.png'
       ]);
     })
@@ -29,17 +30,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Handle navigation requests
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
-        return caches.match(OFFLINE_URL);
+        return caches.match(OFFLINE_URL) || caches.match('/');
       })
     );
-  } else {
-    event.respondWith(
-      caches.match(event.request).then((response) => {
-        return response || fetch(event.request);
-      })
-    );
+    return;
   }
+
+  // Handle other requests (assets, etc)
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
 });
