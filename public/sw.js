@@ -1,16 +1,17 @@
 
-const CACHE_NAME = 'gestao93-v8';
-const OFFLINE_URL = '/index.html';
+const CACHE_NAME = 'gestao93-v9';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/index.css'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll([
-        '/',
-        OFFLINE_URL,
-        '/manifest.json',
-        'https://cdn-icons-png.flaticon.com/512/3081/3081648.png'
-      ]);
+      console.log('Gestão 93: Cache aberto');
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
@@ -30,20 +31,21 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Handle navigation requests
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
-        return caches.match(OFFLINE_URL) || caches.match('/');
+        return caches.match('/') || caches.match('/index.html');
       })
     );
     return;
   }
 
-  // Handle other requests (assets, etc)
   event.respondWith(
     caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+      return response || fetch(event.request).catch(() => {
+        // Fallback for images if needed
+        return null;
+      });
     })
   );
 });

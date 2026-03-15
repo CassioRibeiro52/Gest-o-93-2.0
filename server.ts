@@ -16,6 +16,22 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Explicitly serve PWA files for both dev and prod
+  app.get("/manifest.json", (req, res) => {
+    const p = process.env.NODE_ENV === "production" 
+      ? path.join(process.cwd(), "dist", "manifest.json")
+      : path.join(process.cwd(), "public", "manifest.json");
+    res.sendFile(p);
+  });
+
+  app.get("/sw.js", (req, res) => {
+    const p = process.env.NODE_ENV === "production" 
+      ? path.join(process.cwd(), "dist", "sw.js")
+      : path.join(process.cwd(), "public", "sw.js");
+    res.setHeader("Service-Worker-Allowed", "/");
+    res.sendFile(p);
+  });
+
   if (process.env.NODE_ENV !== "production") {
     // Vite middleware for development
     const vite = await createViteServer({
