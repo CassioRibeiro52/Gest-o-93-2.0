@@ -16,7 +16,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/3081/3081648.png" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA1MTIgNTEyJz4KICA8cmVjdCB3aWR0aD0nNTEyJyBoZWlnaHQ9JzUxMicgcng9JzEyOCcgZmlsbD0nd2hpdGUnLz4KICA8dGV4dCB4PSc1MCUnIHk9JzIzMCcgdGV4dC1hbmNob3I9J21pZGRsZScgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtc3R5bGU9J2l0YWxpYycgZm9udC1zaXplPSc4MCcgZmlsbD0nIzMxMmU4MSc+R0VTVEFPPC90ZXh0PgogIDx0ZXh0IHg9JzUwJScgeT0nMzgwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmb250LWZhbWlseT0nc2Fucy1zZXJpZicgZm9udC13ZWlnaHQ9JzkwMCcgZm9udC1zdHlsZT0naXRhbGljJyBmb250LXNpemU9JzE4MCcgZmlsbD0nIzU4MWM4Nyc+OTM8L3RleHQ+Cjwvc3ZnPg==" />
     
-    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+    <link rel="manifest" href="/manifest.json" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -45,38 +45,55 @@
   <body>
     <div id="root">
       <div style="height: 100vh; display: flex; align-items: center; justify-content: center; background: #312e81; color: white; font-family: sans-serif;">
-        <div style="text-align: center;">
+        <div style="text-align: center; padding: 20px;">
           <h2 style="margin-bottom: 10px;">Carregando Gestão 93...</h2>
           <div style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
-          <p style="margin-top: 20px; font-size: 12px; opacity: 0.7;">Se demorar mais de 10 segundos, tente o botão abaixo:</p>
-          <button onclick="clearCacheAndReload()" style="margin-top: 10px; padding: 8px 16px; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; border-radius: 8px; font-size: 12px; cursor: pointer;">Limpar Cache e Recarregar</button>
+          <p id="status-msg" style="margin-top: 20px; font-size: 14px; opacity: 0.9;">Iniciando sistema...</p>
+          <div style="margin-top: 20px;">
+            <button onclick="clearCacheAndReload()" style="padding: 10px 20px; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; border-radius: 8px; font-size: 14px; cursor: pointer;">Limpar Cache e Recarregar</button>
+          </div>
           <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
         </div>
       </div>
     </div>
     <script type="module" src="/index.tsx"></script>
     <script>
+      const statusMsg = document.getElementById('status-msg');
+      
       function clearCacheAndReload() {
+        statusMsg.innerText = "Limpando cache...";
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(registrations => {
             for(let registration of registrations) { registration.unregister(); }
             caches.keys().then(names => {
               for (let name of names) caches.delete(name);
-              window.location.reload(true);
+              window.location.href = window.location.origin + '?reload=' + Date.now();
             });
           });
         } else {
-          window.location.reload(true);
+          window.location.href = window.location.origin + '?reload=' + Date.now();
         }
       }
 
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Gestão 93: PWA Pronto.'))
-            .catch(err => console.warn('Gestão 93: PWA em modo online.'));
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => {
+              console.log('Gestão 93: PWA Pronto.');
+              statusMsg.innerText = "Sistema pronto para uso offline.";
+            })
+            .catch(err => {
+              console.warn('Gestão 93: PWA em modo online.', err);
+              statusMsg.innerText = "Sistema em modo online.";
+            });
         });
       }
+
+      // Handle PWA install prompt
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('PWA: Pronto para instalar');
+        // Optionally show a button here
+      });
     </script>
 </body>
 </html>

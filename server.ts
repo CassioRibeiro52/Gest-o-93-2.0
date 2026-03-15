@@ -16,20 +16,28 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // Explicitly serve PWA files for both dev and prod
-  app.get("/manifest.json", (req, res) => {
-    const p = process.env.NODE_ENV === "production" 
-      ? path.join(process.cwd(), "dist", "manifest.json")
-      : path.join(process.cwd(), "public", "manifest.json");
-    res.sendFile(p);
-  });
+  // Explicitly serve PWA files
+  const servePwaFile = (fileName: string, res: express.Response) => {
+    const distPath = path.join(process.cwd(), "dist", fileName);
+    const publicPath = path.join(process.cwd(), "public", fileName);
+    
+    // Try dist first, then public
+    res.sendFile(distPath, (err) => {
+      if (err) {
+        res.sendFile(publicPath, (err2) => {
+          if (err2) {
+            res.status(404).send(`${fileName} not found`);
+          }
+        });
+      }
+    });
+  };
 
+  app.get("/manifest.json", (req, res) => servePwaFile("manifest.json", res));
   app.get("/sw.js", (req, res) => {
-    const p = process.env.NODE_ENV === "production" 
-      ? path.join(process.cwd(), "dist", "sw.js")
-      : path.join(process.cwd(), "public", "sw.js");
     res.setHeader("Service-Worker-Allowed", "/");
-    res.sendFile(p);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    servePwaFile("sw.js", res);
   });
 
   if (process.env.NODE_ENV !== "production") {
@@ -41,17 +49,19 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    const rootIndex = path.join(process.cwd(), "index.html");
     
-    // 1. Serve static files first (css, js, images)
     app.use(express.static(distPath));
 
-    // 2. API routes (already handled above, but good to keep in mind)
-
-    // 3. Fallback for SPA: any other route serves index.html
     app.get("*", (req, res) => {
+      // Try dist/index.html, then root index.html
       res.sendFile(path.join(distPath, "index.html"), (err) => {
         if (err) {
-          res.status(404).send("Aplicação não encontrada. Por favor, recarregue a página.");
+          res.sendFile(rootIndex, (err2) => {
+            if (err2) {
+              res.status(404).send("Erro 404: Arquivo index.html não encontrado no servidor.");
+            }
+          });
         }
       });
     });
