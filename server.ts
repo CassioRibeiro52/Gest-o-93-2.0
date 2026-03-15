@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import history from "connect-history-api-fallback";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,7 +11,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // API routes can be added here if needed
+  // API routes MUST come before history fallback
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
@@ -23,11 +24,17 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // History API Fallback for SPA (Production only)
+    app.use(history({
+      verbose: true,
+      index: "/index.html"
+    }));
+
     // Serve static files in production
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     
-    // SPA fallback: redirect all routes to index.html
+    // Fallback for production
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

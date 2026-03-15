@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'gestao93-v6';
+const CACHE_NAME = 'gestao93-v7';
 const OFFLINE_URL = 'index.html';
 
 self.addEventListener('install', (event) => {
