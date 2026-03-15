@@ -1,7 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import firebaseConfig from '@/firebase-applet-config.json';
 
 // Verifica se as chaves mínimas estão presentes
 const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
