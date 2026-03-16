@@ -1,22 +1,22 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional } from './types.ts';
-import Dashboard from './components/Dashboard.tsx';
-import CustomerList from './components/CustomerList.tsx';
-import SalesManager from './components/SalesManager.tsx';
-import CondicionalManager from './components/CondicionalManager.tsx';
-import Agenda from './components/Agenda.tsx';
-import Settings from './components/Settings.tsx';
-import Landing from './components/Landing.tsx';
-import Tutorial from './components/Tutorial.tsx';
-import ExpenseManager from './components/ExpenseManager.tsx';
-import InventoryManager from './components/InventoryManager.tsx';
-import TrashManager from './components/TrashManager.tsx';
-import RefundManager from './components/RefundManager.tsx';
-import { storageService } from './services/storageService.ts';
-import { auth, isFirebaseConfigured } from './services/firebase.ts';
+import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional } from './types';
+import Dashboard from './components/Dashboard';
+import CustomerList from './components/CustomerList';
+import SalesManager from './components/SalesManager';
+import CondicionalManager from './components/CondicionalManager';
+import Agenda from './components/Agenda';
+import Settings from './components/Settings';
+import Landing from './components/Landing';
+import Tutorial from './components/Tutorial';
+import ExpenseManager from './components/ExpenseManager';
+import InventoryManager from './components/InventoryManager';
+import TrashManager from './components/TrashManager';
+import RefundManager from './components/RefundManager';
+import { storageService } from './services/storageService';
+import { auth, isFirebaseConfigured } from './services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import Login from './components/Login.tsx';
+import Login from './components/Login';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
