@@ -1,22 +1,22 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional } from './types';
-import Dashboard from './components/Dashboard';
-import CustomerList from './components/CustomerList';
-import SalesManager from './components/SalesManager';
-import CondicionalManager from './components/CondicionalManager';
-import Agenda from './components/Agenda';
-import Settings from './components/Settings';
-import Landing from './components/Landing';
-import Tutorial from './components/Tutorial';
-import ExpenseManager from './components/ExpenseManager';
-import InventoryManager from './components/InventoryManager';
-import TrashManager from './components/TrashManager';
-import RefundManager from './components/RefundManager';
-import { storageService } from './services/storageService';
-import { auth, isFirebaseConfigured } from './services/firebase';
+import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional } from './types.ts';
+import Dashboard from './components/Dashboard.tsx';
+import CustomerList from './components/CustomerList.tsx';
+import SalesManager from './components/SalesManager.tsx';
+import CondicionalManager from './components/CondicionalManager.tsx';
+import Agenda from './components/Agenda.tsx';
+import Settings from './components/Settings.tsx';
+import Landing from './components/Landing.tsx';
+import Tutorial from './components/Tutorial.tsx';
+import ExpenseManager from './components/ExpenseManager.tsx';
+import InventoryManager from './components/InventoryManager.tsx';
+import TrashManager from './components/TrashManager.tsx';
+import RefundManager from './components/RefundManager.tsx';
+import { storageService } from './services/storageService.ts';
+import { auth, isFirebaseConfigured } from './services/firebase.ts';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import Login from './components/Login';
+import Login from './components/Login.tsx';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -38,25 +38,6 @@ const App: React.FC = () => {
   const initialLoadAttempted = useRef(false);
 
   const FASHION_IMAGE_URL = 'https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=2000';
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
-  };
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -448,45 +429,6 @@ const App: React.FC = () => {
 
   if (!user) return <Login />;
 
-  const handleReloadFromCloud = async () => {
-    if (!user) return;
-    if (!confirm('Isso substituirá seus dados locais atuais pelos dados salvos na nuvem. Continuar?')) return;
-    
-    setLoading(true);
-    setSyncStatus('syncing');
-    try {
-      const userId = user.id;
-      const [loadedCustomers, loadedSales, loadedExpenses, loadedProducts, loadedTrash, loadedCondicionais] = await Promise.all([
-        storageService.loadData<Customer[]>(`gestao93_customers_${userId}`),
-        storageService.loadData<Sale[]>(`gestao93_sales_${userId}`),
-        storageService.loadData<Expense[]>(`gestao93_expenses_${userId}`),
-        storageService.loadData<Product[]>(`gestao93_products_${userId}`),
-        storageService.loadData<TrashItem[]>(`gestao93_trash_${userId}`),
-        storageService.loadData<Condicional[]>(`gestao93_condicionais_${userId}`)
-      ]);
-
-      setCustomers(loadedCustomers || []);
-      setSales(loadedSales || []);
-      setExpenses(loadedExpenses || []);
-      setProducts(loadedProducts || []);
-      setCondicionais(loadedCondicionais || []);
-      
-      const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
-      const validTrash = (loadedTrash || []).filter((item: TrashItem) => (Date.now() - item.deletedAt) < thirtyDaysInMs);
-      setTrashSales(validTrash);
-      
-      setSyncStatus('synced');
-      setLastSyncTime(Date.now());
-      alert('Dados recarregados com sucesso!');
-    } catch (e) {
-      console.error("Erro ao recarregar dados:", e);
-      setSyncStatus('error');
-      alert('Falha ao recarregar dados da nuvem.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const renderView = () => {
     switch (activeView) {
       case 'dashboard': return <Dashboard sales={sales} customers={customers} expenses={expenses} products={products} />;
@@ -530,11 +472,9 @@ const App: React.FC = () => {
               }
             }
           }}
-          onReload={handleReloadFromCloud}
           onUpdateProfile={setUser} 
           onImport={(data) => { setCustomers(data.customers); setSales(data.sales); setProducts(data.products || []); }} 
           onClear={clearUserData} 
-          onInstall={deferredPrompt ? handleInstallClick : undefined} 
         />
       );
       default: return <Dashboard sales={sales} customers={customers} expenses={expenses} products={products} />;
