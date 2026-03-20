@@ -1,10 +1,10 @@
 {
   "name": "Gestão 93 - Controle de Vendas",
   "short_name": "Gestão 93",
-  "description": "Sistema de gestão e controle de vendas para microempreendedores.",
+  "description": "Sistema de gestão de vendas e estoque para lojas de roupas.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#312e81",
   "theme_color": "#312e81",
   "icons": [
     {
@@ -19,5 +19,7 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "orientation": "portrait",
+  "categories": ["business", "finance"]
 }
