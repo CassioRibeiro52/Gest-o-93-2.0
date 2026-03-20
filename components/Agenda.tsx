@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Sale, Customer, PaymentStatus, Installment, SaleItem } from '../types.ts';
+import { Sale, Customer, PaymentStatus, Installment, SaleItem, PaymentMethod } from '../types.ts';
+import { getLocalDateStr } from '../utils/dateUtils';
 
 interface AgendaProps {
   sales: Sale[];
@@ -28,6 +29,7 @@ interface ConsolidatedCard {
 
 const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
   const [abatimentoValues, setAbatimentoValues] = useState<Record<string, string>>({});
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, PaymentMethod>>({});
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   const formatCurrency = (val: number) => 
@@ -111,7 +113,8 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
     let amountToPay = parseFloat(amountStr.replace(',', '.'));
     if (isNaN(amountToPay) || amountToPay <= 0) return;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateStr();
+    const selectedMethod = paymentMethods[card.id] || 'dinheiro';
     
     card.salesIds.forEach(saleId => {
       const sale = sales.find(s => s.id === saleId);
@@ -127,7 +130,8 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
           const newPayment = {
             id: Math.random().toString(36).substr(2, 9),
             amount: payment,
-            date: todayStr
+            date: todayStr,
+            method: selectedMethod
           };
 
           return {
@@ -251,29 +255,54 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
 
                         {/* Botões de Ação dentro do Detalhe */}
                         {!isPaid && (
-                          <div className="space-y-2">
-                            <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden h-10 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
-                              <input 
-                                type="text" 
-                                inputMode="decimal"
-                                placeholder="Abater R$"
-                                value={abatimentoValues[inputKey] || ''}
-                                onChange={e => setAbatimentoValues(prev => ({ ...prev, [inputKey]: e.target.value }))}
-                                className="w-full h-full px-3 text-[11px] font-black text-indigo-600 outline-none placeholder:text-slate-300"
-                              />
+                          <div className="space-y-4">
+                            <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                              <label className="block text-[8px] font-black text-slate-400 uppercase mb-2">Forma de Pagamento:</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { id: 'dinheiro', label: 'Dinheiro' },
+                                  { id: 'cartao_credito', label: 'Crédito' },
+                                  { id: 'cartao_debito', label: 'Débito' },
+                                  { id: 'pix', label: 'PIX' }
+                                ].map(m => (
+                                  <button
+                                    key={m.id}
+                                    onClick={() => setPaymentMethods(prev => ({ ...prev, [card.id]: m.id as PaymentMethod }))}
+                                    className={`py-2 rounded-xl text-[9px] font-black uppercase transition border ${
+                                      (paymentMethods[card.id] || 'dinheiro') === m.id 
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                                        : 'bg-white text-slate-400 border-slate-200'
+                                    }`}
+                                  >
+                                    {m.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden h-10 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                                <input 
+                                  type="text" 
+                                  inputMode="decimal"
+                                  placeholder="Abater R$"
+                                  value={abatimentoValues[inputKey] || ''}
+                                  onChange={e => setAbatimentoValues(prev => ({ ...prev, [inputKey]: e.target.value }))}
+                                  className="w-full h-full px-3 text-[11px] font-black text-indigo-600 outline-none placeholder:text-slate-300"
+                                />
+                                <button 
+                                  onClick={() => handlePaymentAction(card, abatimentoValues[inputKey] || '0')}
+                                  className="bg-indigo-600 text-white px-4 h-full hover:bg-indigo-700 transition-all flex items-center justify-center"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 4v16m8-8H4" /></svg>
+                                </button>
+                              </div>
                               <button 
-                                onClick={() => handlePaymentAction(card, abatimentoValues[inputKey] || '0')}
-                                className="bg-indigo-600 text-white px-4 h-full hover:bg-indigo-700 transition-all flex items-center justify-center"
+                                onClick={() => handlePaymentAction(card, card.remainingAmount.toString())}
+                                className="w-full bg-emerald-500 text-white h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition shadow-lg shadow-emerald-50"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 4v16m8-8H4" /></svg>
+                                Liquidar Parcela
                               </button>
                             </div>
-                            <button 
-                              onClick={() => handlePaymentAction(card, card.remainingAmount.toString())}
-                              className="w-full bg-emerald-500 text-white h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition shadow-lg shadow-emerald-50"
-                            >
-                              Liquidar Parcela
-                            </button>
                           </div>
                         )}
                       </div>

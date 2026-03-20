@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Customer, Sale, PaymentStatus, Installment, Product, SaleItem } from '../types';
+import { Customer, Sale, PaymentStatus, Installment, Product, SaleItem, PaymentMethod } from '../types';
 
 interface SalesManagerProps {
   sales: Sale[];
@@ -30,6 +30,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
   const [cardFeeRate, setCardFeeRate] = useState<number>(0);
   
   const [numInstallments, setNumInstallments] = useState<number>(1);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('dinheiro');
   
   const getNextMonthDate = () => {
     const d = new Date();
@@ -40,6 +41,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
   
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [existingSaleSearch, setExistingSaleSearch] = useState('');
+  const [instPaymentMethods, setInstPaymentMethods] = useState<Record<string, PaymentMethod>>({});
 
   const [editingInstId, setEditingInstId] = useState<string | null>(null);
   const [editInstValues, setEditInstValues] = useState<{dueDate: string, amount: number, paidAmount: number}>({
@@ -147,7 +149,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
         payments: [{
           id: Math.random().toString(36).substr(2, 9),
           amount: totalAmount,
-          date: todayStr
+          date: todayStr,
+          method: paymentMethod
         }]
       });
     } else {
@@ -223,10 +226,13 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
         let newPayments = [...(inst.payments || [])];
         if (newPaidAmount > inst.paidAmount) {
           const diff = newPaidAmount - inst.paidAmount;
+          const selectedMethod = instPaymentMethods[inst.id] || 'dinheiro';
+          
           newPayments.push({
             id: Math.random().toString(36).substr(2, 9),
             amount: diff,
-            date: todayStr
+            date: todayStr,
+            method: selectedMethod
           });
         }
 
@@ -322,12 +328,14 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
             {mode === 'cash' ? 'Venda rápida e busca por código' : 'Gestão de fluxo e escolha de vencimentos'}
           </p>
         </div>
-        <button 
-          onClick={() => setShowAdd(!showAdd)}
-          className={`bg-${accentColor}-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-${accentColor}-700 transition shadow-lg active:scale-95`}
-        >
-          {showAdd ? 'Cancelar' : 'Nova Venda'}
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowAdd(!showAdd)}
+            className={`bg-${accentColor}-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-${accentColor}-700 transition shadow-lg active:scale-95`}
+          >
+            {showAdd ? 'Cancelar' : 'Nova Venda'}
+          </button>
+        </div>
       </div>
 
       {showAdd && (
@@ -450,6 +458,33 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                 </div>
               </div>
 
+              {mode === 'cash' && (
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Forma de Pagamento</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'dinheiro', label: 'Dinheiro' },
+                      { id: 'cartao_credito', label: 'Crédito' },
+                      { id: 'cartao_debito', label: 'Débito' },
+                      { id: 'pix', label: 'PIX' }
+                    ].map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(m.id as PaymentMethod)}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase transition border ${
+                          paymentMethod === m.id 
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' 
+                            : 'bg-white text-slate-400 border-slate-200'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {mode === 'credit' && (
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -553,12 +588,14 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                             <th className="px-4 py-3">Vencimento</th>
                             <th className="px-4 py-3">Valor</th>
                             <th className="px-4 py-3">Pago</th>
+                            <th className="px-4 py-3">Forma Pagto.</th>
                             <th className="px-4 py-3 text-center">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {sale.installments.map((inst, idx) => {
                             const isEditing = editingInstId === inst.id;
+                            const currentMethod = instPaymentMethods[inst.id] || 'dinheiro';
                             return (
                               <tr key={inst.id} className="hover:bg-slate-50/80 transition">
                                 <td className="px-4 py-3 font-black text-slate-400">{idx + 1}ª</td>
@@ -604,6 +641,24 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                                     </div>
                                   ) : (
                                     `R$ ${inst.paidAmount.toFixed(2)}`
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {inst.paidAmount < inst.amount ? (
+                                    <select 
+                                      value={currentMethod}
+                                      onChange={e => setInstPaymentMethods(prev => ({ ...prev, [inst.id]: e.target.value as PaymentMethod }))}
+                                      className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[8px] font-black uppercase outline-none focus:ring-1 focus:ring-indigo-500"
+                                    >
+                                      <option value="dinheiro">Dinheiro</option>
+                                      <option value="cartao_credito">Crédito</option>
+                                      <option value="cartao_debito">Débito</option>
+                                      <option value="pix">PIX</option>
+                                    </select>
+                                  ) : (
+                                    <span className="text-[8px] font-black text-slate-400 uppercase">
+                                      {inst.payments?.[inst.payments.length - 1]?.method || '-'}
+                                    </span>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-center">

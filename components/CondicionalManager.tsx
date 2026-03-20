@@ -136,7 +136,7 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
         dueDate: todayStr,
         paymentDate: todayStr,
         status: PaymentStatus.PAID,
-        payments: [{ id: Math.random().toString(36).substr(2, 9), amount: totalAmount, date: todayStr }]
+        payments: [{ id: Math.random().toString(36).substr(2, 9), amount: totalAmount, date: todayStr, method: 'dinheiro' }]
       });
     } else {
       const baseValue = Math.floor((totalAmount / numInstallments) * 100) / 100;
@@ -283,6 +283,12 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
                   >
                     {isExpanded ? 'Fechar' : 'Gerenciar'}
                   </button>
+                  <button 
+                    onClick={() => onDeleteCondicional(cond.id)}
+                    className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase hover:bg-rose-100 transition border border-rose-100"
+                  >
+                    Cancelar Tudo
+                  </button>
                 </div>
               </div>
 
@@ -317,12 +323,6 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
                       className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-emerald-700 transition active:scale-95"
                     >
                       Fechar Venda (Vender o que ficou)
-                    </button>
-                    <button 
-                      onClick={() => onDeleteCondicional(cond.id)}
-                      className="px-8 py-4 bg-rose-50 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-600 hover:text-white transition"
-                    >
-                      Cancelar Tudo
                     </button>
                   </div>
                 </div>

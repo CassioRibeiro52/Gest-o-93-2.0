@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional } from './types.ts';
+import React, { useState, useEffect, useCallback, useRef, Component, ErrorInfo, ReactNode } from 'react';
+import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional, CashClosing } from './types.ts';
 import Dashboard from './components/Dashboard.tsx';
 import CustomerList from './components/CustomerList.tsx';
 import SalesManager from './components/SalesManager.tsx';
@@ -13,10 +13,71 @@ import ExpenseManager from './components/ExpenseManager.tsx';
 import InventoryManager from './components/InventoryManager.tsx';
 import TrashManager from './components/TrashManager.tsx';
 import RefundManager from './components/RefundManager.tsx';
+import CashManager from './components/CashManager.tsx';
 import { storageService } from './services/storageService.ts';
-import { auth, isFirebaseConfigured } from './services/firebase.ts';
+import { auth, isFirebaseConfigured, db } from './services/firebase.ts';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { APP_VERSION } from './version.ts';
 import Login from './components/Login.tsx';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let errorMessage = "Ocorreu um erro inesperado.";
+      try {
+        const parsedError = JSON.parse(this.state.error?.message || "");
+        if (parsedError.error && parsedError.operationType) {
+          errorMessage = `Erro de permissão no banco de dados (${parsedError.operationType}). Por favor, contate o suporte.`;
+        }
+      } catch (e) {
+        // Not a JSON error
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-6">
+          <div className="max-w-md w-full bg-slate-800 rounded-3xl p-8 shadow-2xl border border-white/10 text-center">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h2 className="text-2xl font-black uppercase italic mb-4">Ops! Algo deu errado</h2>
+            <p className="text-slate-400 text-sm mb-8">{errorMessage}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black uppercase tracking-widest transition shadow-lg shadow-indigo-500/20"
+            >
+              Recarregar Aplicativo
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -28,11 +89,14 @@ const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [condicionais, setCondicionais] = useState<Condicional[]>([]);
   const [trashSales, setTrashSales] = useState<TrashItem[]>([]);
+  const [cashClosings, setCashClosings] = useState<CashClosing[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const isMounted = useRef(false);
   const initialLoadAttempted = useRef(false);
@@ -63,13 +127,14 @@ const App: React.FC = () => {
           const tutorialSeen = await storageService.loadData<string>(`gestao93_tutorial_seen_${userId}`);
           if (!tutorialSeen) setShowTutorial(true);
 
-          const [loadedCustomers, loadedSales, loadedExpenses, loadedProducts, loadedTrash, loadedCondicionais] = await Promise.all([
+          const [loadedCustomers, loadedSales, loadedExpenses, loadedProducts, loadedTrash, loadedCondicionais, loadedClosings] = await Promise.all([
             storageService.loadData<Customer[]>(`gestao93_customers_${userId}`),
             storageService.loadData<Sale[]>(`gestao93_sales_${userId}`),
             storageService.loadData<Expense[]>(`gestao93_expenses_${userId}`),
             storageService.loadData<Product[]>(`gestao93_products_${userId}`),
             storageService.loadData<TrashItem[]>(`gestao93_trash_${userId}`),
-            storageService.loadData<Condicional[]>(`gestao93_condicionais_${userId}`)
+            storageService.loadData<Condicional[]>(`gestao93_condicionais_${userId}`),
+            storageService.loadData<CashClosing[]>(`gestao93_closings_${userId}`)
           ]);
 
           setCustomers(loadedCustomers || []);
@@ -77,6 +142,7 @@ const App: React.FC = () => {
           setExpenses(loadedExpenses || []);
           setProducts(loadedProducts || []);
           setCondicionais(loadedCondicionais || []);
+          setCashClosings(loadedClosings || []);
           
           const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
           const validTrash = (loadedTrash || []).filter((item: TrashItem) => (Date.now() - item.deletedAt) < thirtyDaysInMs);
@@ -109,6 +175,38 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!db || !isFirebaseConfigured) return;
+
+    const checkVersion = async () => {
+      try {
+        const versionDoc = await getDoc(doc(db, 'config', 'app_version'));
+        if (versionDoc.exists()) {
+          const data = versionDoc.data();
+          setRemoteVersion(data.version);
+          
+          // Compara versões (simples comparação de string ou lógica mais complexa se necessário)
+          if (data.version && data.version !== APP_VERSION) {
+            // Se a versão remota for diferente da local, mostramos o banner
+            // Podemos usar uma lógica de "versão maior" se preferir
+            setShowUpdateBanner(true);
+          }
+        } else if (user?.email === "geo.cassio.ufu@gmail.com") {
+          // Se o documento não existe e o usuário é o admin, inicializa
+          await setDoc(doc(db, 'config', 'app_version'), { 
+            version: APP_VERSION,
+            updatedAt: Date.now(),
+            updatedBy: user.email
+          });
+        }
+      } catch (e) {
+        console.error("Erro ao verificar versão:", e);
+      }
+    };
+
+    checkVersion();
+  }, [user, isInitialLoadComplete]);
+
+  useEffect(() => {
     if (loading || !user || !isMounted.current || !isInitialLoadComplete) return;
 
     const autoSave = async () => {
@@ -124,6 +222,7 @@ const App: React.FC = () => {
           storageService.saveData(`gestao93_products_${userId}`, products),
           storageService.saveData(`gestao93_trash_${userId}`, trashSales),
           storageService.saveData(`gestao93_condicionais_${userId}`, condicionais),
+          storageService.saveData(`gestao93_closings_${userId}`, cashClosings),
           storageService.saveData(`gestao93_current_user_${userId}`, user)
         ]);
 
@@ -412,6 +511,7 @@ const App: React.FC = () => {
       setExpenses([]);
       setProducts([]);
       setTrashSales([]);
+      setCashClosings([]);
       alert("Banco de dados limpo com sucesso.");
     }
   };
@@ -441,12 +541,14 @@ const App: React.FC = () => {
       case 'expenses': return <ExpenseManager expenses={expenses} onAdd={(description, amount) => setExpenses(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), description, amount, category: 'fixed', date: new Date().toISOString().split('T')[0] }])} onDelete={(id) => setExpenses(prev => prev.filter(e => e.id !== id))} />;
       case 'agenda': return <Agenda sales={sales} customers={customers} onUpdateSale={handleUpdateSale} />;
       case 'trash': return <TrashManager trashItems={trashSales} customers={customers} onRestore={handleRestoreSale} onDeletePermanent={handlePermanentDelete} />;
+      case 'cash-closing': return <CashManager sales={sales} closings={cashClosings} onAddClosing={(c) => setCashClosings(prev => [{ ...c, id: Math.random().toString(36).substr(2, 9) }, ...prev])} />;
       case 'settings': return (
         <Settings 
           user={user} 
           customers={customers} 
           sales={sales} 
           products={products} 
+          cashClosings={cashClosings}
           syncStatus={syncStatus}
           lastSyncTime={lastSyncTime}
           isFirebaseConfigured={isFirebaseConfigured}
@@ -461,6 +563,7 @@ const App: React.FC = () => {
                   storageService.saveData(`gestao93_products_${user.id}`, products),
                   storageService.saveData(`gestao93_trash_${user.id}`, trashSales),
                   storageService.saveData(`gestao93_condicionais_${user.id}`, condicionais),
+                  storageService.saveData(`gestao93_closings_${user.id}`, cashClosings),
                   storageService.saveData(`gestao93_current_user_${user.id}`, user)
                 ]);
                 setLastSyncTime(results[0]);
@@ -473,8 +576,31 @@ const App: React.FC = () => {
             }
           }}
           onUpdateProfile={setUser} 
-          onImport={(data) => { setCustomers(data.customers); setSales(data.sales); setProducts(data.products || []); }} 
+          onImport={(data) => { 
+            setCustomers(data.customers); 
+            setSales(data.sales); 
+            setProducts(data.products || []); 
+            if (data.cashClosings) setCashClosings(data.cashClosings);
+          }} 
           onClear={clearUserData} 
+          onPublishVersion={async () => {
+            if (db && user?.email === "geo.cassio.ufu@gmail.com") {
+              try {
+                await setDoc(doc(db, 'config', 'app_version'), { 
+                  version: APP_VERSION,
+                  updatedAt: Date.now(),
+                  updatedBy: user.email
+                });
+                setRemoteVersion(APP_VERSION);
+                setShowUpdateBanner(false);
+                alert(`Versão ${APP_VERSION} publicada com sucesso para todos os usuários!`);
+              } catch (e) {
+                alert('Erro ao publicar versão.');
+              }
+            }
+          }}
+          currentVersion={APP_VERSION}
+          remoteVersion={remoteVersion}
         />
       );
       default: return <Dashboard sales={sales} customers={customers} expenses={expenses} products={products} />;
@@ -483,6 +609,27 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row relative">
+      {showUpdateBanner && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-indigo-600 text-white px-4 py-3 shadow-2xl animate-in slide-in-from-top duration-500">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 p-2 rounded-lg">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest">Nova Versão Disponível ({remoteVersion})</p>
+                <p className="text-[10px] opacity-80 font-medium">Atualize agora para acessar as novas funcionalidades e melhorias.</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-white text-indigo-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition active:scale-95 whitespace-nowrap"
+            >
+              Atualizar Agora
+            </button>
+          </div>
+        </div>
+      )}
       <div className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat opacity-50" style={{ backgroundImage: `url(${FASHION_IMAGE_URL})` }} />
       {showTutorial && <Tutorial activeView={activeView} onClose={async () => { await storageService.saveData(`gestao93_tutorial_seen_${user.id}`, 'true'); setShowTutorial(false); }} />}
       <nav className="w-full md:w-64 bg-indigo-950 text-white flex flex-col shrink-0 z-50 shadow-2xl relative overflow-hidden">
@@ -506,6 +653,7 @@ const App: React.FC = () => {
         </div>
         <div className="relative z-10 flex-1 py-4 space-y-1 px-3 overflow-y-auto no-scrollbar">
           <NavItem id="nav-dashboard" icon="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" label="Início" active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
+          <NavItem id="nav-cash-closing" icon="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" label="Caixa" active={activeView === 'cash-closing'} onClick={() => setActiveView('cash-closing')} />
           <NavItem id="nav-inventory" icon="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" label="Estoque" active={activeView === 'inventory'} onClick={() => setActiveView('inventory')} />
           <NavItem id="nav-customers" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" label="Clientes" active={activeView === 'customers'} onClick={() => setActiveView('customers')} />
           <NavItem id="nav-sales-cash" icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" label="À Vista" active={activeView === 'sales-cash'} onClick={() => setActiveView('sales-cash')} />
@@ -547,4 +695,8 @@ const NavItem: React.FC<{ id?: string; icon: string; label: string; active: bool
   </button>
 );
 
-export default App;
+export default () => (
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);

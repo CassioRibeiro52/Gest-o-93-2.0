@@ -6,6 +6,7 @@ export interface User {
   password?: string;
   authProvider?: 'local' | 'onedrive';
   avatarUrl?: string;
+  autoClosingTime?: string; // HH:mm format
 }
 
 export interface Customer {
@@ -44,10 +45,13 @@ export enum PaymentStatus {
   CANCELED = 'CANCELED'
 }
 
+export type PaymentMethod = 'dinheiro' | 'cartao_credito' | 'cartao_debito' | 'pix';
+
 export interface Payment {
   id: string;
   amount: number;
   date: string;
+  method: PaymentMethod;
 }
 
 export interface Installment {
@@ -113,4 +117,25 @@ export interface Condicional {
   status: 'open' | 'converted' | 'canceled';
 }
 
-export type View = 'dashboard' | 'customers' | 'sales-cash' | 'sales-credit' | 'agenda' | 'settings' | 'expenses' | 'inventory' | 'trash' | 'refunds' | 'condicional';
+export interface CashClosing {
+  id: string;
+  date: string; // YYYY-MM-DD
+  closedAt: number;
+  totals: {
+    cash: {
+      dinheiro: number;
+      cartao_credito: number;
+      cartao_debito: number;
+      pix: number;
+    };
+    credit: {
+      dinheiro: number;
+      cartao_credito: number;
+      cartao_debito: number;
+      pix: number;
+    };
+  };
+  notes?: string;
+}
+
+export type View = 'dashboard' | 'customers' | 'sales-cash' | 'sales-credit' | 'agenda' | 'settings' | 'expenses' | 'inventory' | 'trash' | 'refunds' | 'condicional' | 'cash-closing';

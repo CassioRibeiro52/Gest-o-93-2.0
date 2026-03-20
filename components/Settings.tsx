@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Customer, Sale, User, Product } from '../types';
+import { Customer, Sale, User, Product, CashClosing } from '../types';
 import { firebaseConfig } from '../services/firebase';
 
 interface SettingsProps {
@@ -8,15 +8,19 @@ interface SettingsProps {
   customers: Customer[];
   sales: Sale[];
   products: Product[];
+  cashClosings: CashClosing[];
   syncStatus?: 'synced' | 'syncing' | 'error';
   lastSyncTime?: number | null;
   isFirebaseConfigured?: boolean;
   onSync?: () => Promise<void>;
   onReload?: () => Promise<void>;
   onUpdateProfile?: (user: User) => void;
-  onImport: (data: { customers: Customer[], sales: Sale[], products?: Product[] }) => void;
+  onImport: (data: { customers: Customer[], sales: Sale[], products?: Product[], cashClosings?: CashClosing[] }) => void;
   onClear: () => void;
   onInstall?: () => void;
+  onPublishVersion?: () => Promise<void>;
+  currentVersion?: string;
+  remoteVersion?: string | null;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -24,6 +28,7 @@ const Settings: React.FC<SettingsProps> = ({
   customers, 
   sales, 
   products, 
+  cashClosings,
   syncStatus, 
   lastSyncTime, 
   isFirebaseConfigured,
@@ -32,7 +37,10 @@ const Settings: React.FC<SettingsProps> = ({
   onUpdateProfile, 
   onImport,
   onClear, 
-  onInstall 
+  onInstall,
+  onPublishVersion,
+  currentVersion,
+  remoteVersion
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'ia' | 'sync' | 'backup' | 'deploy' | 'credits' | 'danger'>('profile');
   
@@ -69,7 +77,7 @@ const Settings: React.FC<SettingsProps> = ({
   };
 
   const handleExport = () => {
-    const data = { customers, sales, products, exportDate: new Date().toISOString() };
+    const data = { customers, sales, products, cashClosings, exportDate: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -88,7 +96,12 @@ const Settings: React.FC<SettingsProps> = ({
         const json = JSON.parse(event.target?.result as string);
         if (json.customers && json.sales) {
           if (confirm('Isso substituirá seus dados atuais. Continuar?')) {
-            onImport({ customers: json.customers, sales: json.sales, products: json.products || [] });
+            onImport({ 
+              customers: json.customers, 
+              sales: json.sales, 
+              products: json.products || [],
+              cashClosings: json.cashClosings || []
+            });
           }
         }
       } catch { alert('Erro no arquivo.'); }
@@ -319,6 +332,41 @@ const Settings: React.FC<SettingsProps> = ({
               {onInstall && <button onClick={onInstall} className="bg-white text-indigo-900 px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl hover:bg-indigo-50 transition active:scale-95">Instalar Agora</button>}
             </div>
             {!onInstall && <div className="bg-amber-50 p-6 rounded-3xl border border-amber-200 text-center"><p className="text-amber-800 text-xs font-black uppercase">Vá nos 3 pontinhos do Chrome e selecione "Instalar Aplicativo".</p></div>}
+
+            {user?.email === "geo.cassio.ufu@gmail.com" && (
+              <div className="bg-slate-900 p-8 rounded-[2rem] text-white border border-indigo-500/30">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-indigo-500 p-2 rounded-xl">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
+                  </div>
+                  <h3 className="text-xl font-black italic uppercase">Painel do Desenvolvedor</h3>
+                </div>
+                <p className="text-sm text-slate-400 font-medium mb-6">Como administrador, você pode notificar todos os usuários sobre uma nova atualização disponível.</p>
+                
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Versão Local</p>
+                    <p className="text-lg font-black text-white">{currentVersion}</p>
+                  </div>
+                  <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Versão na Nuvem</p>
+                    <p className="text-lg font-black text-indigo-400">{remoteVersion || '---'}</p>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    if (confirm(`Deseja publicar a versão ${currentVersion} como a versão oficial para todos os usuários?`)) {
+                      onPublishVersion && onPublishVersion();
+                    }
+                  }}
+                  disabled={currentVersion === remoteVersion}
+                  className={`w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl transition active:scale-95 ${currentVersion === remoteVersion ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
+                >
+                  {currentVersion === remoteVersion ? 'Versão já Publicada' : 'Publicar Nova Versão'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

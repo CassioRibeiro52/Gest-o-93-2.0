@@ -6,10 +6,10 @@ service cloud.firestore {
     // ===============================================================
     //
     // Collection: app_data
-    // Document ID: {key} (Format: prefix_type_userId)
+    // Document ID: {key} (Format: gestao93_{type}_{userId})
     // Fields:
-    //   - data: any (required) - The actual data payload
-    //   - updatedAt: number (required) - Timestamp of update
+    //   - data: any (required) - The actual data payload (can be map or list)
+    //   - updatedAt: number (required) - Timestamp of the last update
     //
     // ===============================================================
 
@@ -21,16 +21,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Verifica se a chave do documento contém o UID do usuário
-    // O formato esperado é gestao93_tipo_UID
-    function isKeyOwner(key) {
-      return isAuthenticated() && 
-             (key.matches(".*" + request.auth.uid + "$") || 
-              key.matches(".*" + request.auth.uid));
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "geo.cassio.ufu@gmail.com" && request.auth.token.email_verified == true);
     }
 
+    // Verifica se a chave do documento termina com o UID do usuário
+    function isKeyOwner(key) {
+      return isAuthenticated() && key.matches(".*_" + request.auth.uid + "$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
     function isValidAppData(data) {
-      return data.keys().hasAll(['data', 'updatedAt']) &&
+      return hasRequiredFields(['data', 'updatedAt']) &&
+             hasOnlyAllowedFields(['data', 'updatedAt']) &&
+             (data.data is map || data.data is list) &&
              data.updatedAt is number;
     }
 
@@ -39,11 +55,18 @@ service cloud.firestore {
     // ===============================================================
 
     match /app_data/{key} {
-      allow read: if isKeyOwner(key);
-      allow create, update: if isKeyOwner(key) && isValidAppData(request.resource.data);
-      allow delete: if isKeyOwner(key);
+      allow read: if isKeyOwner(key) || isAdmin();
+      allow create, update: if (isKeyOwner(key) && isValidAppData(request.resource.data)) || isAdmin();
+      allow delete: if isKeyOwner(key) || isAdmin();
     }
 
+    // Configuração de versão do aplicativo
+    match /config/app_version {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Permite teste de conexão
     match /test/connection {
       allow read: if true;
     }
