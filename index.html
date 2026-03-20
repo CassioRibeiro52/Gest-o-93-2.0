@@ -6,18 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Gestão 93 - Controle de Vendas</title>
     
-    <!-- PWA / Android Meta Tags -->
-    <meta name="theme-color" content="#312e81" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="application-name" content="Gestão 93" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Gestão 93" />
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3081/3081648.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/3081/3081648.png" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA1MTIgNTEyJz4KICA8cmVjdCB3aWR0aD0nNTEyJyBoZWlnaHQ9JzUxMicgcng9JzEyOCcgZmlsbD0nd2hpdGUnLz4KICA8dGV4dCB4PSc1MCUnIHk9JzIzMCcgdGV4dC1hbmNob3I9J21pZGRsZScgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtc3R5bGU9J2l0YWxpYycgZm9udC1zaXplPSc4MCcgZmlsbD0nIzMxMmU4MSc+R0VTVEFPPC90ZXh0PgogIDx0ZXh0IHg9JzUwJScgeT0nMzgwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmb250LWZhbWlseT0nc2Fucy1zZXJpZicgZm9udC13ZWlnaHQ9JzkwMCcgZm9udC1zdHlsZT0naXRhbGljJyBmb250LXNpemU9JzE4MCcgZmlsbD0nIzU4MWM4Nyc+OTM8L3RleHQ+Cjwvc3ZnPg==" />
-    
-    <link rel="manifest" href="/manifest.json" />
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -56,50 +44,5 @@
       </div>
     </div>
     <script type="module" src="/index.tsx"></script>
-    <script>
-      const statusMsg = document.getElementById('status-msg');
-      
-      function clearCacheAndReload() {
-        statusMsg.innerText = "Limpando cache...";
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(registrations => {
-            for(let registration of registrations) { registration.unregister(); }
-            caches.keys().then(names => {
-              for (let name of names) caches.delete(name);
-              window.location.href = window.location.origin + '?reload=' + Date.now();
-            });
-          });
-        } else {
-          window.location.href = window.location.origin + '?reload=' + Date.now();
-        }
-      }
-
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          // Use absolute path from root for the service worker
-          const swPath = '/sw.js';
-          navigator.serviceWorker.register(swPath, { scope: '/' })
-            .then(reg => {
-              console.log('Gestão 93: PWA Pronto.');
-              if (statusMsg) statusMsg.innerText = "Sistema pronto para uso offline.";
-            })
-            .catch(err => {
-              console.warn('Gestão 93: PWA em modo online.', err);
-              if (statusMsg) statusMsg.innerText = "Sistema em modo online.";
-              
-              // If we get a MIME type error, it might be because sw.js is missing or served as HTML
-              if (err.message && err.message.includes('MIME type')) {
-                console.error('ERRO CRÍTICO: sw.js está sendo servido como HTML. Verifique se o arquivo existe na pasta /public.');
-              }
-            });
-        });
-      }
-
-      // Handle PWA install prompt
-      window.addEventListener('beforeinstallprompt', (e) => {
-        console.log('PWA: Pronto para instalar');
-        // Optionally show a button here
-      });
-    </script>
 </body>
 </html>

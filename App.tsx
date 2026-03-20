@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef, Component, ErrorInfo, ReactNode } from 'react';
-import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional, CashClosing } from './types';
+import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional } from './types';
 import Dashboard from './components/Dashboard';
 import CustomerList from './components/CustomerList';
 import SalesManager from './components/SalesManager';
@@ -13,7 +13,6 @@ import ExpenseManager from './components/ExpenseManager';
 import InventoryManager from './components/InventoryManager';
 import TrashManager from './components/TrashManager';
 import RefundManager from './components/RefundManager';
-import CashManager from './components/CashManager';
 import { storageService } from './services/storageService';
 import { auth, isFirebaseConfigured } from './services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -87,13 +86,11 @@ const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [condicionais, setCondicionais] = useState<Condicional[]>([]);
   const [trashSales, setTrashSales] = useState<TrashItem[]>([]);
-  const [cashClosings, setCashClosings] = useState<CashClosing[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const isMounted = useRef(false);
   const initialLoadAttempted = useRef(false);
 
@@ -123,14 +120,13 @@ const App: React.FC = () => {
           const tutorialSeen = await storageService.loadData<string>(`gestao93_tutorial_seen_${userId}`);
           if (!tutorialSeen) setShowTutorial(true);
 
-          const [loadedCustomers, loadedSales, loadedExpenses, loadedProducts, loadedTrash, loadedCondicionais, loadedClosings] = await Promise.all([
+          const [loadedCustomers, loadedSales, loadedExpenses, loadedProducts, loadedTrash, loadedCondicionais] = await Promise.all([
             storageService.loadData<Customer[]>(`gestao93_customers_${userId}`),
             storageService.loadData<Sale[]>(`gestao93_sales_${userId}`),
             storageService.loadData<Expense[]>(`gestao93_expenses_${userId}`),
             storageService.loadData<Product[]>(`gestao93_products_${userId}`),
             storageService.loadData<TrashItem[]>(`gestao93_trash_${userId}`),
-            storageService.loadData<Condicional[]>(`gestao93_condicionais_${userId}`),
-            storageService.loadData<CashClosing[]>(`gestao93_closings_${userId}`)
+            storageService.loadData<Condicional[]>(`gestao93_condicionais_${userId}`)
           ]);
 
           setCustomers(loadedCustomers || []);
@@ -138,7 +134,6 @@ const App: React.FC = () => {
           setExpenses(loadedExpenses || []);
           setProducts(loadedProducts || []);
           setCondicionais(loadedCondicionais || []);
-          setCashClosings(loadedClosings || []);
           
           const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
           const validTrash = (loadedTrash || []).filter((item: TrashItem) => (Date.now() - item.deletedAt) < thirtyDaysInMs);
@@ -186,7 +181,6 @@ const App: React.FC = () => {
           storageService.saveData(`gestao93_products_${userId}`, products),
           storageService.saveData(`gestao93_trash_${userId}`, trashSales),
           storageService.saveData(`gestao93_condicionais_${userId}`, condicionais),
-          storageService.saveData(`gestao93_closings_${userId}`, cashClosings),
           storageService.saveData(`gestao93_current_user_${userId}`, user)
         ]);
 
@@ -475,7 +469,6 @@ const App: React.FC = () => {
       setExpenses([]);
       setProducts([]);
       setTrashSales([]);
-      setCashClosings([]);
       alert("Banco de dados limpo com sucesso.");
     }
   };
@@ -505,14 +498,12 @@ const App: React.FC = () => {
       case 'expenses': return <ExpenseManager expenses={expenses} onAdd={(description, amount) => setExpenses(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), description, amount, category: 'fixed', date: new Date().toISOString().split('T')[0] }])} onDelete={(id) => setExpenses(prev => prev.filter(e => e.id !== id))} />;
       case 'agenda': return <Agenda sales={sales} customers={customers} onUpdateSale={handleUpdateSale} />;
       case 'trash': return <TrashManager trashItems={trashSales} customers={customers} onRestore={handleRestoreSale} onDeletePermanent={handlePermanentDelete} />;
-      case 'cash-closing': return <CashManager sales={sales} closings={cashClosings} onAddClosing={(c) => setCashClosings(prev => [{ ...c, id: Math.random().toString(36).substr(2, 9) }, ...prev])} />;
       case 'settings': return (
         <Settings 
           user={user} 
           customers={customers} 
           sales={sales} 
           products={products} 
-          cashClosings={cashClosings}
           syncStatus={syncStatus}
           lastSyncTime={lastSyncTime}
           isFirebaseConfigured={isFirebaseConfigured}
@@ -527,7 +518,6 @@ const App: React.FC = () => {
                   storageService.saveData(`gestao93_products_${user.id}`, products),
                   storageService.saveData(`gestao93_trash_${user.id}`, trashSales),
                   storageService.saveData(`gestao93_condicionais_${user.id}`, condicionais),
-                  storageService.saveData(`gestao93_closings_${user.id}`, cashClosings),
                   storageService.saveData(`gestao93_current_user_${user.id}`, user)
                 ]);
                 setLastSyncTime(results[0]);
@@ -544,7 +534,6 @@ const App: React.FC = () => {
             setCustomers(data.customers); 
             setSales(data.sales); 
             setProducts(data.products || []); 
-            if (data.cashClosings) setCashClosings(data.cashClosings);
           }} 
           onClear={clearUserData} 
         />
@@ -578,7 +567,6 @@ const App: React.FC = () => {
         </div>
         <div className="relative z-10 flex-1 py-4 space-y-1 px-3 overflow-y-auto no-scrollbar">
           <NavItem id="nav-dashboard" icon="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" label="Início" active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
-          <NavItem id="nav-cash-closing" icon="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" label="Caixa" active={activeView === 'cash-closing'} onClick={() => setActiveView('cash-closing')} />
           <NavItem id="nav-inventory" icon="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" label="Estoque" active={activeView === 'inventory'} onClick={() => setActiveView('inventory')} />
           <NavItem id="nav-customers" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" label="Clientes" active={activeView === 'customers'} onClick={() => setActiveView('customers')} />
           <NavItem id="nav-sales-cash" icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" label="À Vista" active={activeView === 'sales-cash'} onClick={() => setActiveView('sales-cash')} />
