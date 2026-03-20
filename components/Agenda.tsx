@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
-import { Sale, Customer, PaymentStatus, Installment, SaleItem, PaymentMethod } from '../types.ts';
-import { getLocalDateStr } from '../utils/dateUtils';
+import { Sale, Customer, PaymentStatus, Installment, SaleItem, PaymentMethod } from '../types';
 
 interface AgendaProps {
   sales: Sale[];
@@ -113,7 +112,7 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
     let amountToPay = parseFloat(amountStr.replace(',', '.'));
     if (isNaN(amountToPay) || amountToPay <= 0) return;
 
-    const todayStr = getLocalDateStr();
+    const todayStr = new Date().toISOString().split('T')[0];
     const selectedMethod = paymentMethods[card.id] || 'dinheiro';
     
     card.salesIds.forEach(saleId => {

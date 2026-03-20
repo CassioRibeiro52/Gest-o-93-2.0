@@ -1,25 +1,23 @@
 
 import React, { useState, useEffect, useCallback, useRef, Component, ErrorInfo, ReactNode } from 'react';
-import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional, CashClosing } from './types.ts';
-import Dashboard from './components/Dashboard.tsx';
-import CustomerList from './components/CustomerList.tsx';
-import SalesManager from './components/SalesManager.tsx';
-import CondicionalManager from './components/CondicionalManager.tsx';
-import Agenda from './components/Agenda.tsx';
-import Settings from './components/Settings.tsx';
-import Landing from './components/Landing.tsx';
-import Tutorial from './components/Tutorial.tsx';
-import ExpenseManager from './components/ExpenseManager.tsx';
-import InventoryManager from './components/InventoryManager.tsx';
-import TrashManager from './components/TrashManager.tsx';
-import RefundManager from './components/RefundManager.tsx';
-import CashManager from './components/CashManager.tsx';
-import { storageService } from './services/storageService.ts';
-import { auth, isFirebaseConfigured, db } from './services/firebase.ts';
+import { View, Customer, Sale, User, Expense, Product, TrashItem, PaymentStatus, Installment, Condicional, CashClosing } from './types';
+import Dashboard from './components/Dashboard';
+import CustomerList from './components/CustomerList';
+import SalesManager from './components/SalesManager';
+import CondicionalManager from './components/CondicionalManager';
+import Agenda from './components/Agenda';
+import Settings from './components/Settings';
+import Landing from './components/Landing';
+import Tutorial from './components/Tutorial';
+import ExpenseManager from './components/ExpenseManager';
+import InventoryManager from './components/InventoryManager';
+import TrashManager from './components/TrashManager';
+import RefundManager from './components/RefundManager';
+import CashManager from './components/CashManager';
+import { storageService } from './services/storageService';
+import { auth, isFirebaseConfigured } from './services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { APP_VERSION } from './version.ts';
-import Login from './components/Login.tsx';
+import Login from './components/Login';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -95,8 +93,6 @@ const App: React.FC = () => {
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
-  const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const isMounted = useRef(false);
   const initialLoadAttempted = useRef(false);
@@ -173,38 +169,6 @@ const App: React.FC = () => {
 
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (!db || !isFirebaseConfigured) return;
-
-    const checkVersion = async () => {
-      try {
-        const versionDoc = await getDoc(doc(db, 'config', 'app_version'));
-        if (versionDoc.exists()) {
-          const data = versionDoc.data();
-          setRemoteVersion(data.version);
-          
-          // Compara versões (simples comparação de string ou lógica mais complexa se necessário)
-          if (data.version && data.version !== APP_VERSION) {
-            // Se a versão remota for diferente da local, mostramos o banner
-            // Podemos usar uma lógica de "versão maior" se preferir
-            setShowUpdateBanner(true);
-          }
-        } else if (user?.email === "geo.cassio.ufu@gmail.com") {
-          // Se o documento não existe e o usuário é o admin, inicializa
-          await setDoc(doc(db, 'config', 'app_version'), { 
-            version: APP_VERSION,
-            updatedAt: Date.now(),
-            updatedBy: user.email
-          });
-        }
-      } catch (e) {
-        console.error("Erro ao verificar versão:", e);
-      }
-    };
-
-    checkVersion();
-  }, [user, isInitialLoadComplete]);
 
   useEffect(() => {
     if (loading || !user || !isMounted.current || !isInitialLoadComplete) return;
@@ -583,24 +547,6 @@ const App: React.FC = () => {
             if (data.cashClosings) setCashClosings(data.cashClosings);
           }} 
           onClear={clearUserData} 
-          onPublishVersion={async () => {
-            if (db && user?.email === "geo.cassio.ufu@gmail.com") {
-              try {
-                await setDoc(doc(db, 'config', 'app_version'), { 
-                  version: APP_VERSION,
-                  updatedAt: Date.now(),
-                  updatedBy: user.email
-                });
-                setRemoteVersion(APP_VERSION);
-                setShowUpdateBanner(false);
-                alert(`Versão ${APP_VERSION} publicada com sucesso para todos os usuários!`);
-              } catch (e) {
-                alert('Erro ao publicar versão.');
-              }
-            }
-          }}
-          currentVersion={APP_VERSION}
-          remoteVersion={remoteVersion}
         />
       );
       default: return <Dashboard sales={sales} customers={customers} expenses={expenses} products={products} />;
@@ -609,27 +555,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row relative">
-      {showUpdateBanner && (
-        <div className="fixed top-0 left-0 right-0 z-[100] bg-indigo-600 text-white px-4 py-3 shadow-2xl animate-in slide-in-from-top duration-500">
-          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-2 rounded-lg">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest">Nova Versão Disponível ({remoteVersion})</p>
-                <p className="text-[10px] opacity-80 font-medium">Atualize agora para acessar as novas funcionalidades e melhorias.</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => window.location.reload()}
-              className="bg-white text-indigo-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition active:scale-95 whitespace-nowrap"
-            >
-              Atualizar Agora
-            </button>
-          </div>
-        </div>
-      )}
       <div className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat opacity-50" style={{ backgroundImage: `url(${FASHION_IMAGE_URL})` }} />
       {showTutorial && <Tutorial activeView={activeView} onClose={async () => { await storageService.saveData(`gestao93_tutorial_seen_${user.id}`, 'true'); setShowTutorial(false); }} />}
       <nav className="w-full md:w-64 bg-indigo-950 text-white flex flex-col shrink-0 z-50 shadow-2xl relative overflow-hidden">

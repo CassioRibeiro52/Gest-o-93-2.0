@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { TrashItem, Sale, Customer } from '../types.ts';
+import { TrashItem, Sale, Customer } from '../types';
 
 interface TrashManagerProps {
   trashItems: TrashItem[];
