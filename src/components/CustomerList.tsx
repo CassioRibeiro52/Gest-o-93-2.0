@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Customer, Sale, PaymentStatus } from '../types';
+import { Customer, Sale } from '../types';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -70,7 +70,6 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onAdd, on
         </button>
       </div>
 
-      {/* Global Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Dívida Total Acumulada</p>
@@ -163,7 +162,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onAdd, on
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map(customer => {
+              {customers.map(customer => {
                 const stats = getCustomerStats(customer.id);
                 return (
                   <tr key={customer.id} className="hover:bg-slate-50 transition group">

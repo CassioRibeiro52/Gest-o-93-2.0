@@ -104,9 +104,7 @@ const Landing: React.FC<LandingProps> = ({ onLogin }) => {
             <div className="bg-indigo-600 p-2 rounded-xl shadow-2xl">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
             </div>
-            <h1 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter">
-              Gestão <span className="text-purple-400">93</span>
-            </h1>
+            <h1 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter">Gestão 93</h1>
           </div>
           <p className="text-lg md:text-2xl font-bold italic drop-shadow-lg">“Lute Pelos seus Sonhos hoje !”</p>
         </div>

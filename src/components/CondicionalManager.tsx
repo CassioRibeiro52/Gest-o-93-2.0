@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Customer, Product, Condicional, CondicionalItem, Sale, PaymentStatus, Installment } from '../types';
+import { Customer, Product, Condicional, CondicionalItem, Sale, PaymentStatus, Installment, PaymentMethod } from '../types';
 
 interface CondicionalManagerProps {
   condicionais: Condicional[];
@@ -38,6 +38,7 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
     d.setMonth(d.getMonth() + 1);
     return d.toISOString().split('T')[0];
   });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('dinheiro');
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return [];
@@ -80,6 +81,7 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
         id: Math.random().toString(36).substr(2, 5),
         returnedQuantity: 0
       })),
+      totalAmount: cart.reduce((acc, item) => acc + (item.price * item.quantity), 0),
       date: new Date().toISOString().split('T')[0],
       status: 'open'
     });
@@ -136,7 +138,7 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
         dueDate: todayStr,
         paymentDate: todayStr,
         status: PaymentStatus.PAID,
-        payments: [{ id: Math.random().toString(36).substr(2, 9), amount: totalAmount, date: todayStr, method: 'dinheiro' }]
+        payments: [{ id: Math.random().toString(36).substr(2, 9), amount: totalAmount, date: todayStr, method: paymentMethod }]
       });
     } else {
       const baseValue = Math.floor((totalAmount / numInstallments) * 100) / 100;
@@ -283,12 +285,6 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
                   >
                     {isExpanded ? 'Fechar' : 'Gerenciar'}
                   </button>
-                  <button 
-                    onClick={() => onDeleteCondicional(cond.id)}
-                    className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase hover:bg-rose-100 transition border border-rose-100"
-                  >
-                    Cancelar Tudo
-                  </button>
                 </div>
               </div>
 
@@ -323,6 +319,12 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
                       className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-emerald-700 transition active:scale-95"
                     >
                       Fechar Venda (Vender o que ficou)
+                    </button>
+                    <button 
+                      onClick={() => onDeleteCondicional(cond.id)}
+                      className="px-8 py-4 bg-rose-50 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-600 hover:text-white transition"
+                    >
+                      Cancelar Tudo
                     </button>
                   </div>
                 </div>
@@ -378,10 +380,30 @@ const CondicionalManager: React.FC<CondicionalManagerProps> = ({
                 )}
               </div>
 
-              {checkoutMode === 'credit' && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Vencimento da 1ª</label>
-                  <input type="date" value={firstDueDate} onChange={e => setFirstDueDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500" />
+              {checkoutMode === 'cash' && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Forma de Pagamento</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'dinheiro', label: 'Dinheiro' },
+                      { id: 'cartao_credito', label: 'CC' },
+                      { id: 'cartao_debito', label: 'CD' },
+                      { id: 'pix', label: 'PIX' }
+                    ].map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(m.id as PaymentMethod)}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase transition border ${
+                          paymentMethod === m.id 
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' 
+                            : 'bg-white text-slate-400 border-slate-200'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

@@ -44,14 +44,7 @@ export enum PaymentStatus {
   CANCELED = 'CANCELED'
 }
 
-export type PaymentMethod = 'dinheiro' | 'cartao_credito' | 'cartao_debito' | 'pix';
-
-export interface Payment {
-  id: string;
-  amount: number;
-  date: string;
-  method: PaymentMethod;
-}
+export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito';
 
 export interface Installment {
   id: string;
@@ -61,7 +54,7 @@ export interface Installment {
   dueDate: string;
   paymentDate?: string;
   status: PaymentStatus;
-  payments?: Payment[];
+  payments?: { id: string; amount: number; date: string; method: PaymentMethod }[];
 }
 
 export interface SaleItem {
@@ -100,20 +93,35 @@ export interface TrashItem {
 
 export interface CondicionalItem {
   id: string;
-  productId: string;
+  productId?: string;
   description: string;
   price: number;
   costPrice: number;
   quantity: number;
-  returnedQuantity: number;
+  returnedQuantity?: number;
 }
 
 export interface Condicional {
   id: string;
   customerId: string;
   items: CondicionalItem[];
+  totalAmount: number;
   date: string;
-  status: 'open' | 'converted' | 'canceled';
+  status: 'pending' | 'returned' | 'sold' | 'converted' | 'open';
 }
 
-export type View = 'dashboard' | 'customers' | 'sales-cash' | 'sales-credit' | 'agenda' | 'settings' | 'expenses' | 'inventory' | 'trash' | 'refunds' | 'condicional';
+export interface CashierClosure {
+  id: string;
+  date: string;
+  closedAt: number;
+  closedBy: string;
+  totalAmount: number;
+  breakdown: {
+    dinheiro: number;
+    cartao_credito: number;
+    cartao_debito: number;
+    pix: number;
+  };
+}
+
+export type View = 'dashboard' | 'customers' | 'sales-cash' | 'sales-credit' | 'agenda' | 'settings' | 'expenses' | 'inventory' | 'trash' | 'refunds' | 'condicional' | 'cashier';

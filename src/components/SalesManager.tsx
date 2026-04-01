@@ -32,6 +32,9 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
   const [numInstallments, setNumInstallments] = useState<number>(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('dinheiro');
   
+  const formatCurrency = (val: number) => 
+    val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+
   const getNextMonthDate = () => {
     const d = new Date();
     d.setMonth(d.getMonth() + 1);
@@ -49,6 +52,11 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
     amount: 0,
     paidAmount: 0
   });
+
+  const [confirmDeleteInst, setConfirmDeleteInst] = useState<{sale: Sale, installmentId: string} | null>(null);
+  const [showReparcel, setShowReparcel] = useState<string | null>(null); // saleId
+  const [reparcelCount, setReparcelCount] = useState<number>(1);
+  const [reparcelFirstDate, setReparcelFirstDate] = useState<string>(getNextMonthDate());
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return [];
@@ -254,6 +262,128 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
     setEditingInstId(null);
   };
 
+  const handleDeleteInstallment = (sale: Sale, installmentId: string) => {
+    if (sale.installments.length <= 1) {
+      // Use a custom alert state if needed, but for now, let's just use the modal pattern
+      return;
+    }
+
+    const instToDelete = sale.installments.find(i => i.id === installmentId);
+    if (!instToDelete) return;
+
+    setConfirmDeleteInst({ sale, installmentId });
+  };
+
+  const executeDeleteInstallment = () => {
+    if (!confirmDeleteInst) return;
+    const { sale, installmentId } = confirmDeleteInst;
+
+    const instToDelete = sale.installments.find(i => i.id === installmentId);
+    if (!instToDelete) return;
+
+    const updatedInstallments = sale.installments.filter(inst => inst.id !== installmentId);
+    
+    // Se houver outras parcelas, redistribuímos o valor da parcela excluída
+    // para manter o total da venda consistente, a menos que o usuário queira reduzir o total.
+    // Por padrão, vamos redistribuir para a próxima parcela disponível ou para a anterior.
+    if (updatedInstallments.length > 0) {
+      const amountToRedistribute = instToDelete.amount - instToDelete.paidAmount;
+      if (amountToRedistribute > 0) {
+        // Tenta encontrar a próxima parcela pendente
+        let targetIdx = updatedInstallments.findIndex(i => i.status !== PaymentStatus.PAID);
+        if (targetIdx === -1) targetIdx = updatedInstallments.length - 1; // Se todas pagas, joga na última
+        
+        updatedInstallments[targetIdx] = {
+          ...updatedInstallments[targetIdx],
+          amount: updatedInstallments[targetIdx].amount + amountToRedistribute,
+          status: updatedInstallments[targetIdx].paidAmount >= (updatedInstallments[targetIdx].amount + amountToRedistribute)
+            ? PaymentStatus.PAID : (updatedInstallments[targetIdx].paidAmount > 0 ? PaymentStatus.PARTIAL : PaymentStatus.PENDING)
+        };
+      }
+    }
+
+    const newTotalAmount = updatedInstallments.reduce((acc, curr) => acc + curr.amount, 0);
+    
+    // Recalculate fees and net amount based on new total
+    const cardFeeRate = sale.cardFeeRate || 0;
+    const newCardFeeAmount = (newTotalAmount * cardFeeRate) / 100;
+    const newNetAmount = newTotalAmount - newCardFeeAmount;
+    
+    const allPaid = updatedInstallments.length > 0 && updatedInstallments.every(i => i.paidAmount >= i.amount);
+    
+    onUpdateSale({
+      ...sale,
+      totalAmount: newTotalAmount,
+      cardFeeAmount: newCardFeeAmount,
+      netAmount: newNetAmount,
+      installments: updatedInstallments,
+      status: allPaid ? PaymentStatus.PAID : (updatedInstallments.some(i => i.paidAmount > 0) ? PaymentStatus.PARTIAL : PaymentStatus.PENDING)
+    });
+
+    setConfirmDeleteInst(null);
+  };
+
+  const handleReparcel = (sale: Sale) => {
+    const totalPaid = sale.installments.reduce((acc, inst) => acc + inst.paidAmount, 0);
+    const remainingBalance = sale.totalAmount - totalPaid;
+
+    if (remainingBalance <= 0) {
+      alert("Não há saldo devedor para reparcelar.");
+      return;
+    }
+
+    const newInstallments: Installment[] = [];
+    // Keep paid installments
+    const paidInstallments = sale.installments.filter(inst => inst.paidAmount >= inst.amount && inst.amount > 0);
+    
+    // Generate new installments for the remaining balance
+    const baseValue = Math.floor((remainingBalance / reparcelCount) * 100) / 100;
+    const lastValue = Number((remainingBalance - (baseValue * (reparcelCount - 1))).toFixed(2));
+
+    const [year, month, day] = reparcelFirstDate.split('-').map(Number);
+    
+    for (let i = 0; i < reparcelCount; i++) {
+      let targetMonth = (month - 1) + i;
+      let targetYear = year;
+      
+      while (targetMonth > 11) {
+        targetMonth -= 12;
+        targetYear += 1;
+      }
+
+      const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const actualDay = Math.min(day, lastDayOfMonth);
+      const installmentDate = new Date(targetYear, targetMonth, actualDay);
+
+      newInstallments.push({
+        id: Math.random().toString(36).substr(2, 9),
+        saleId: sale.id,
+        amount: i === reparcelCount - 1 ? lastValue : baseValue,
+        paidAmount: 0,
+        dueDate: formatLocalDate(installmentDate),
+        status: PaymentStatus.PENDING
+      });
+    }
+
+    const finalInstallments = [...paidInstallments, ...newInstallments];
+    const newTotalAmount = finalInstallments.reduce((acc, curr) => acc + curr.amount, 0);
+    
+    // Recalculate fees and net amount
+    const newCardFeeAmount = (newTotalAmount * sale.cardFeeRate) / 100;
+    const newNetAmount = newTotalAmount - newCardFeeAmount;
+
+    onUpdateSale({
+      ...sale,
+      totalAmount: newTotalAmount,
+      cardFeeAmount: newCardFeeAmount,
+      netAmount: newNetAmount,
+      installments: finalInstallments,
+      status: PaymentStatus.PARTIAL
+    });
+
+    setShowReparcel(null);
+  };
+
   const startEditingInstallment = (inst: Installment) => {
     setEditingInstId(inst.id);
     setEditInstValues({
@@ -315,6 +445,37 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
     setExistingSaleSearch('');
   };
 
+  const handleAddInstallment = (sale: Sale) => {
+    const lastInst = sale.installments[sale.installments.length - 1];
+    const lastDate = lastInst ? new Date(lastInst.dueDate + 'T12:00:00') : new Date();
+    const nextDate = new Date(lastDate);
+    nextDate.setMonth(nextDate.getMonth() + 1);
+    
+    const newInst: Installment = {
+      id: Math.random().toString(36).substr(2, 9),
+      saleId: sale.id,
+      amount: 0,
+      paidAmount: 0,
+      dueDate: formatLocalDate(nextDate),
+      status: PaymentStatus.PENDING
+    };
+
+    const updatedInstallments = [...sale.installments, newInst];
+    
+    onUpdateSale({
+      ...sale,
+      installments: updatedInstallments,
+      status: PaymentStatus.PARTIAL
+    });
+    
+    setEditingInstId(newInst.id);
+    setEditInstValues({
+      dueDate: newInst.dueDate,
+      amount: 0,
+      paidAmount: 0
+    });
+  };
+
   const accentColor = mode === 'cash' ? 'emerald' : 'indigo';
 
   return (
@@ -328,14 +489,12 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
             {mode === 'cash' ? 'Venda rápida e busca por código' : 'Gestão de fluxo e escolha de vencimentos'}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setShowAdd(!showAdd)}
-            className={`bg-${accentColor}-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-${accentColor}-700 transition shadow-lg active:scale-95`}
-          >
-            {showAdd ? 'Cancelar' : 'Nova Venda'}
-          </button>
-        </div>
+        <button 
+          onClick={() => setShowAdd(!showAdd)}
+          className={`bg-${accentColor}-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-${accentColor}-700 transition shadow-lg active:scale-95`}
+        >
+          {showAdd ? 'Cancelar' : 'Nova Venda'}
+        </button>
       </div>
 
       {showAdd && (
@@ -464,8 +623,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { id: 'dinheiro', label: 'Dinheiro' },
-                      { id: 'cartao_credito', label: 'Crédito' },
-                      { id: 'cartao_debito', label: 'Débito' },
+                      { id: 'cartao_credito', label: 'CC' },
+                      { id: 'cartao_debito', label: 'CD' },
                       { id: 'pix', label: 'PIX' }
                     ].map(m => (
                       <button
@@ -578,8 +737,73 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                   <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                     <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Parcelas</h4>
-                       <p className="text-[10px] font-black text-rose-600 uppercase">Aberto: R$ {remaining.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                       <div className="flex items-center gap-4">
+                         <button 
+                           onClick={() => {
+                             setShowReparcel(sale.id);
+                             setReparcelCount(1);
+                             setReparcelFirstDate(getNextMonthDate());
+                           }}
+                           className="text-[9px] font-black text-amber-600 uppercase hover:underline"
+                         >
+                           Reparcelar Saldo
+                         </button>
+                         <button 
+                           onClick={() => handleAddInstallment(sale)}
+                           className="text-[9px] font-black text-indigo-600 uppercase hover:underline"
+                         >
+                           + Nova Parcela
+                         </button>
+                         <p className="text-[10px] font-black text-rose-600 uppercase">Aberto: R$ {remaining.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                       </div>
                     </div>
+
+                    {showReparcel === sale.id && (
+                      <div className="bg-amber-50 p-4 border-b border-amber-100 animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex flex-col md:flex-row items-end gap-4">
+                          <div className="flex-1">
+                            <p className="text-[9px] font-black text-amber-600 uppercase mb-2">Reparcelar Saldo de R$ {remaining.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[8px] font-black text-amber-400 uppercase">Novas Parcelas</label>
+                                <input 
+                                  type="number" 
+                                  min="1" 
+                                  max="24" 
+                                  value={reparcelCount} 
+                                  onChange={e => setReparcelCount(Number(e.target.value))}
+                                  className="w-full bg-white border border-amber-200 rounded px-2 py-1 text-[10px] font-black outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[8px] font-black text-amber-400 uppercase">1º Vencimento</label>
+                                <input 
+                                  type="date" 
+                                  value={reparcelFirstDate} 
+                                  onChange={e => setReparcelFirstDate(e.target.value)}
+                                  className="w-full bg-white border border-amber-200 rounded px-2 py-1 text-[10px] font-black outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleReparcel(sale)}
+                              className="bg-amber-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-amber-700 transition"
+                            >
+                              Confirmar Reparcelamento
+                            </button>
+                            <button 
+                              onClick={() => setShowReparcel(null)}
+                              className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-300 transition"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-[10px]">
                         <thead className="bg-slate-50/50 text-slate-400 font-black uppercase">
@@ -645,19 +869,34 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                                 </td>
                                 <td className="px-4 py-3">
                                   {inst.paidAmount < inst.amount ? (
-                                    <select 
-                                      value={currentMethod}
-                                      onChange={e => setInstPaymentMethods(prev => ({ ...prev, [inst.id]: e.target.value as PaymentMethod }))}
-                                      className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[8px] font-black uppercase outline-none focus:ring-1 focus:ring-indigo-500"
-                                    >
-                                      <option value="dinheiro">Dinheiro</option>
-                                      <option value="cartao_credito">Crédito</option>
-                                      <option value="cartao_debito">Débito</option>
-                                      <option value="pix">PIX</option>
-                                    </select>
+                                    <div className="flex flex-wrap gap-1 max-w-[120px]">
+                                      {[
+                                        { id: 'dinheiro', label: 'DIN' },
+                                        { id: 'cartao_credito', label: 'CC' },
+                                        { id: 'cartao_debito', label: 'CD' },
+                                        { id: 'pix', label: 'PIX' }
+                                      ].map(m => (
+                                        <button
+                                          key={m.id}
+                                          type="button"
+                                          onClick={() => setInstPaymentMethods(prev => ({ ...prev, [inst.id]: m.id as PaymentMethod }))}
+                                          className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition border ${
+                                            currentMethod === m.id 
+                                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
+                                              : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300'
+                                          }`}
+                                          title={m.label}
+                                        >
+                                          {m.label}
+                                        </button>
+                                      ))}
+                                    </div>
                                   ) : (
                                     <span className="text-[8px] font-black text-slate-400 uppercase">
-                                      {inst.payments?.[inst.payments.length - 1]?.method || '-'}
+                                      {inst.payments?.[inst.payments.length - 1]?.method === 'dinheiro' ? 'DIN' : 
+                                       inst.payments?.[inst.payments.length - 1]?.method === 'cartao_credito' ? 'CC' :
+                                       inst.payments?.[inst.payments.length - 1]?.method === 'cartao_debito' ? 'CD' :
+                                       inst.payments?.[inst.payments.length - 1]?.method === 'pix' ? 'PIX' : '-'}
                                     </span>
                                   )}
                                 </td>
@@ -689,10 +928,25 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                                         >
                                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                         </button>
+                                        <button 
+                                          onClick={() => handleDeleteInstallment(sale, inst.id)}
+                                          className="p-1 text-slate-400 hover:text-rose-600 transition"
+                                          title="Excluir Parcela"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
                                         {inst.paidAmount < inst.amount && (
                                           <button 
-                                            onClick={() => handleUpdateInstallment(sale, inst.id, { paidAmount: inst.amount, paymentDate: formatLocalDate(new Date()) })} 
-                                            className="bg-emerald-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase hover:bg-emerald-600 transition"
+                                            onClick={() => {
+                                              if (window.confirm(`Deseja quitar totalmente esta parcela de ${formatCurrency(inst.amount - inst.paidAmount)}?`)) {
+                                                handleUpdateInstallment(sale, inst.id, { 
+                                                  paidAmount: inst.amount, 
+                                                  paymentDate: formatLocalDate(new Date()) 
+                                                });
+                                              }
+                                            }} 
+                                            className="bg-emerald-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase hover:bg-emerald-600 transition shadow-sm"
+                                            title="Quitar Parcela"
                                           >
                                             Quitar
                                           </button>
@@ -709,13 +963,71 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, customers, products,
                       </table>
                     </div>
                   </div>
-                  <button onClick={() => onDeleteSale && onDeleteSale(sale.id, false)} className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-600 hover:text-white transition">Excluir Venda</button>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Deseja realmente cancelar esta venda? Os itens retornarão ao estoque.')) {
+                          onDeleteSale && onDeleteSale(sale.id, false);
+                        }
+                      }} 
+                      className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-600 hover:text-white transition"
+                    >
+                      Cancelar Venda
+                    </button>
+                    {sale.status !== PaymentStatus.PAID && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Esta ação registrará a devolução total dos valores já pagos como uma despesa de estorno. Continuar?')) {
+                            onDeleteSale && onDeleteSale(sale.id, true);
+                          }
+                        }} 
+                        className="flex-1 py-3 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-100 hover:bg-amber-600 hover:text-white transition"
+                      >
+                        Devolução / Estorno
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           );
         })}
       </div>
+
+      {/* Modal de Confirmação de Exclusão de Parcela */}
+      {confirmDeleteInst && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              </div>
+              <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">Confirmar Exclusão</h3>
+              <p className="text-xs text-slate-500 font-bold leading-relaxed">
+                {confirmDeleteInst.sale.installments.find(i => i.id === confirmDeleteInst.installmentId)?.paidAmount! > 0 
+                  ? "Esta parcela possui pagamentos registrados. Ao excluí-la, o saldo devedor será redistribuído para as demais parcelas. Deseja continuar?"
+                  : "Deseja realmente excluir esta parcela? O valor pendente será redistribuído para as outras parcelas desta venda."}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={executeDeleteInstallment}
+                className="flex-1 bg-rose-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-rose-700 transition active:scale-95"
+              >
+                Sim, Excluir
+              </button>
+              <button 
+                onClick={() => setConfirmDeleteInst(null)}
+                className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition active:scale-95"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

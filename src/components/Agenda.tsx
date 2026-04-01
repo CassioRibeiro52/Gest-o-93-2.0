@@ -41,7 +41,8 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
 
     sales.forEach(sale => {
       sale.installments.forEach(inst => {
-        const date = new Date(inst.dueDate);
+        const [y, m, d] = inst.dueDate.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
         const monthYear = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
         const customerId = sale.customerId;
         const remaining = inst.amount - inst.paidAmount;
@@ -76,7 +77,9 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
         card.paidAmount += inst.paidAmount;
         card.remainingAmount += remaining;
         
-        if (remaining > 0 && new Date(inst.dueDate) < today) {
+        const [yInst, mInst, dInst] = inst.dueDate.split('-').map(Number);
+        const instDate = new Date(yInst, mInst - 1, dInst);
+        if (remaining > 0 && instDate < today) {
           card.isOverdue = true;
         }
         
@@ -108,6 +111,24 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
     return months;
   };
 
+  const getNextMonthDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    let nextMonth = month; // já é o índice do próximo mês (0-indexed)
+    let nextYear = year;
+    if (nextMonth > 11) {
+      nextMonth = 0;
+      nextYear++;
+    }
+    const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+    const actualDay = Math.min(day, lastDayOfNextMonth);
+    const d = new Date(nextYear, nextMonth, actualDay);
+    
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  };
+
   const handlePaymentAction = (card: ConsolidatedCard, amountStr: string) => {
     let amountToPay = parseFloat(amountStr.replace(',', '.'));
     if (isNaN(amountToPay) || amountToPay <= 0) return;
@@ -119,12 +140,19 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
       const sale = sales.find(s => s.id === saleId);
       if (!sale) return;
 
-      const updatedInstallments = sale.installments.map(inst => {
+      const updatedInstallments = [...sale.installments];
+      let saleModified = false;
+
+      for (let i = 0; i < updatedInstallments.length; i++) {
+        const inst = updatedInstallments[i];
         if (inst.dueDate === card.dueDate && amountToPay > 0) {
           const debt = inst.amount - inst.paidAmount;
+          if (debt <= 0) continue;
+
           const payment = Math.min(debt, amountToPay);
           const newPaidAmount = inst.paidAmount + payment;
           amountToPay -= payment;
+          saleModified = true;
           
           const newPayment = {
             id: Math.random().toString(36).substr(2, 9),
@@ -133,26 +161,109 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
             method: selectedMethod
           };
 
-          return {
-            ...inst,
-            paidAmount: newPaidAmount,
-            payments: [...(inst.payments || []), newPayment],
-            paymentDate: newPaidAmount >= inst.amount ? todayStr : inst.paymentDate,
-            status: newPaidAmount >= inst.amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL
-          };
-        }
-        return inst;
-      });
+          const remainingBalance = inst.amount - newPaidAmount;
 
-      const allPaid = updatedInstallments.every(i => i.paidAmount >= i.amount);
-      onUpdateSale({
-        ...sale,
-        installments: updatedInstallments,
-        status: allPaid ? PaymentStatus.PAID : PaymentStatus.PARTIAL
-      });
+          if (remainingBalance > 0) {
+            // Lança o restante na parcela do mês seguinte
+            const nextMonthDate = getNextMonthDate(inst.dueDate);
+            
+            // Atualiza a parcela atual para ficar quitada com o valor parcial
+            updatedInstallments[i] = {
+              ...inst,
+              amount: newPaidAmount,
+              paidAmount: newPaidAmount,
+              payments: [...(inst.payments || []), newPayment],
+              paymentDate: todayStr,
+              status: PaymentStatus.PAID
+            };
+
+            // Busca ou cria a parcela do mês seguinte
+            const nextInstIdx = updatedInstallments.findIndex(ni => ni.dueDate === nextMonthDate);
+            if (nextInstIdx !== -1) {
+              updatedInstallments[nextInstIdx] = {
+                ...updatedInstallments[nextInstIdx],
+                amount: updatedInstallments[nextInstIdx].amount + remainingBalance,
+                status: updatedInstallments[nextInstIdx].paidAmount >= (updatedInstallments[nextInstIdx].amount + remainingBalance) 
+                  ? PaymentStatus.PAID : (updatedInstallments[nextInstIdx].paidAmount > 0 ? PaymentStatus.PARTIAL : PaymentStatus.PENDING)
+              };
+            } else {
+              updatedInstallments.push({
+                id: Math.random().toString(36).substr(2, 9),
+                saleId: sale.id,
+                amount: remainingBalance,
+                paidAmount: 0,
+                dueDate: nextMonthDate,
+                status: PaymentStatus.PENDING
+              });
+            }
+          } else {
+            // Quitação total da parcela
+            updatedInstallments[i] = {
+              ...inst,
+              paidAmount: newPaidAmount,
+              payments: [...(inst.payments || []), newPayment],
+              paymentDate: todayStr,
+              status: PaymentStatus.PAID
+            };
+          }
+        }
+      }
+
+      if (saleModified) {
+        const allPaid = updatedInstallments.every(i => i.paidAmount >= i.amount);
+        onUpdateSale({
+          ...sale,
+          installments: updatedInstallments,
+          status: allPaid ? PaymentStatus.PAID : PaymentStatus.PARTIAL
+        });
+      }
     });
 
     setAbatimentoValues(prev => ({ ...prev, [card.id]: '' }));
+  };
+
+  const handleReschedule = (card: ConsolidatedCard) => {
+    if (card.remainingAmount <= 0) return;
+    
+    const newDateStr = window.prompt("Informe a nova data de vencimento (AAAA-MM-DD):", new Date().toISOString().split('T')[0]);
+    if (!newDateStr) return;
+
+    card.salesIds.forEach(saleId => {
+      const sale = sales.find(s => s.id === saleId);
+      if (!sale) return;
+
+      const updatedInstallments = [...sale.installments];
+      const instIdx = updatedInstallments.findIndex(i => i.dueDate === card.dueDate && i.paidAmount < i.amount);
+      
+      if (instIdx !== -1) {
+        const inst = updatedInstallments[instIdx];
+        const balance = inst.amount - inst.paidAmount;
+        
+        // Reduz a parcela atual para o que já foi pago
+        updatedInstallments[instIdx] = {
+          ...inst,
+          amount: inst.paidAmount,
+          status: inst.paidAmount > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING
+        };
+
+        // Cria a nova parcela com o saldo
+        updatedInstallments.push({
+          id: Math.random().toString(36).substr(2, 9),
+          saleId: sale.id,
+          amount: balance,
+          paidAmount: 0,
+          dueDate: newDateStr,
+          status: PaymentStatus.PENDING
+        });
+
+        onUpdateSale({
+          ...sale,
+          installments: updatedInstallments
+        });
+      }
+    });
+
+    alert('Saldo reparcelado com sucesso!');
   };
 
   const groupedData = getGroupedData();
@@ -260,8 +371,8 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
                               <div className="grid grid-cols-2 gap-2">
                                 {[
                                   { id: 'dinheiro', label: 'Dinheiro' },
-                                  { id: 'cartao_credito', label: 'Crédito' },
-                                  { id: 'cartao_debito', label: 'Débito' },
+                                  { id: 'cartao_credito', label: 'CC' },
+                                  { id: 'cartao_debito', label: 'CD' },
                                   { id: 'pix', label: 'PIX' }
                                 ].map(m => (
                                   <button
@@ -300,6 +411,12 @@ const Agenda: React.FC<AgendaProps> = ({ sales, customers, onUpdateSale }) => {
                                 className="w-full bg-emerald-500 text-white h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition shadow-lg shadow-emerald-50"
                               >
                                 Liquidar Parcela
+                              </button>
+                              <button 
+                                onClick={() => handleReschedule(card)}
+                                className="w-full bg-indigo-100 text-indigo-600 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-200 transition"
+                              >
+                                Reparcelar Saldo
                               </button>
                             </div>
                           </div>

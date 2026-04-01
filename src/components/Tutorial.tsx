@@ -9,7 +9,7 @@ interface TutorialProps {
 interface Step {
   id: string;
   targetId: string;
-  title: React.ReactNode;
+  title: string;
   content: string;
 }
 
@@ -21,7 +21,7 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose, activeView }) => {
     {
       id: 'step-dashboard',
       targetId: 'nav-dashboard',
-      title: <>Bem-vindo ao Gestão <span className="text-purple-400">93</span>!</>,
+      title: 'Bem-vindo ao Gestão 93!',
       content: 'Este é o seu painel principal. Aqui você verá o lucro real das suas vendas, faturamento e insights da nossa Inteligência Artificial.',
     },
     {

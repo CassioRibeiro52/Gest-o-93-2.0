@@ -9,10 +9,9 @@ interface DashboardProps {
   customers: Customer[];
   expenses: Expense[];
   products: Product[];
-  onCancelLastSale: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ sales, customers, expenses, products, onCancelLastSale }) => {
+const Dashboard: React.FC<DashboardProps> = ({ sales, customers, expenses, products }) => {
   const [insights, setInsights] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(true);
@@ -56,8 +55,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, customers, expenses, produ
 
       sales.forEach(sale => {
         sale.installments.forEach(inst => {
-          const dueDate = new Date(inst.dueDate);
-          if (dueDate.getMonth() === m && dueDate.getFullYear() === y) {
+          const [yInst, mInst] = inst.dueDate.split('-').map(Number);
+          if ((mInst - 1) === m && yInst === y) {
             pending += (inst.amount - inst.paidAmount);
             received += inst.paidAmount;
           }
@@ -147,14 +146,14 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, customers, expenses, produ
 
   const financials = useMemo(() => {
     const monthSales = sales.filter(s => {
-      const saleDate = new Date(s.date);
-      return saleDate.getMonth() === selectedMonth && saleDate.getFullYear() === selectedYear;
+      const [year, month] = s.date.split('-').map(Number);
+      return (month - 1) === selectedMonth && year === selectedYear;
     });
 
     const monthExpenses = expenses.filter(e => {
       if (!e.date) return true; 
-      const expDate = new Date(e.date);
-      return expDate.getMonth() === selectedMonth && expDate.getFullYear() === selectedYear;
+      const [year, month] = e.date.split('-').map(Number);
+      return (month - 1) === selectedMonth && year === selectedYear;
     });
 
     // 1. FATURAMENTO BRUTO: Tudo que foi vendido no mês
@@ -186,15 +185,15 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, customers, expenses, produ
         // Se houver histórico de pagamentos, somamos apenas os que ocorreram no mês selecionado
         if (inst.payments && inst.payments.length > 0) {
           inst.payments.forEach(p => {
-            const pDate = new Date(p.date + 'T12:00:00');
-            if (pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear) {
+            const [yP, mP] = p.date.split('-').map(Number);
+            if ((mP - 1) === selectedMonth && yP === selectedYear) {
               installmentTotal += p.amount;
             }
           });
         } else if (inst.paymentDate) {
           // Fallback para dados antigos que não possuem histórico de pagamentos
-          const pDate = new Date(inst.paymentDate + 'T12:00:00');
-          if (pDate.getMonth() === selectedMonth && pDate.getFullYear() === selectedYear) {
+          const [yP, mP] = inst.paymentDate.split('-').map(Number);
+          if ((mP - 1) === selectedMonth && yP === selectedYear) {
             installmentTotal += inst.paidAmount;
           }
         }
@@ -388,26 +387,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, customers, expenses, produ
 
           <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white">
             <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-400 mb-6">Análise Inteligente</h4>
-            <p className="text-xs leading-relaxed font-medium italic opacity-90 mb-6">"{insights}"</p>
-            
-            <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-400 mb-4 border-t border-white/10 pt-6">Ações Rápidas</h4>
-            <div className="space-y-3">
-              <button 
-                onClick={onCancelLastSale}
-                className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Cancelar Última Venda
-              </button>
-              <button 
-                onClick={() => fetchInsights(true)} 
-                disabled={isSyncing} 
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                Recalcular Insights
-              </button>
-            </div>
+            <p className="text-xs leading-relaxed font-medium italic opacity-90">"{insights}"</p>
+            <button onClick={() => fetchInsights(true)} disabled={isSyncing} className="mt-6 text-[9px] font-black uppercase text-indigo-400 underline decoration-indigo-400/30 hover:text-white transition">Recalcular Insights</button>
           </div>
 
           <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
